@@ -21,6 +21,7 @@ Option Explicit
 ' Contrôles requis :
 '   txtAbsNom    — TextBox  — Nom de la personne (lecture seule)
 '   cboAbsType   — ComboBox — Type d'absence (Vacances / Maladie / Congé)
+'   cboAbsPeriode — ComboBox — Période (Journée / Matin / Après-midi) — NOUVEAU
 '   txtAbsDebut  — TextBox  — Date de début (jj.mm.aaaa)
 '   txtAbsFin    — TextBox  — Date de fin   (jj.mm.aaaa)
 '   btnAbsConfirmer — CommandButton — Confirmer
@@ -43,6 +44,13 @@ Private Sub UserForm_Initialize()
         .AddItem TYPE_ABS_MALADIE
         .AddItem TYPE_ABS_CONGE
         .Value = TYPE_ABS_VACANCES
+    End With
+
+    With cboAbsPeriode
+        .AddItem PERIODE_JOURNEE
+        .AddItem PERIODE_MATIN
+        .AddItem PERIODE_APRESMIDI
+        .Value = PERIODE_JOURNEE
     End With
 
     Confirme = False

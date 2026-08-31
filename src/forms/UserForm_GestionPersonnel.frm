@@ -64,6 +64,14 @@ Private Sub UserForm_Initialize()
         .AddItem "Conge"
         .AddItem "Maladie"
     End With
+
+    ' --- ComboBox Periode absence (nouveau) ---
+    With cboVacPeriode
+        .AddItem PERIODE_JOURNEE
+        .AddItem PERIODE_MATIN
+        .AddItem PERIODE_APRESMIDI
+        .Value = PERIODE_JOURNEE
+    End With
     
         ' --- ComboBox Type remplacement ---
     With cboTypeRpl
@@ -310,6 +318,12 @@ End Sub
 
 Private Sub btnSupprimerRplIndividuel_Click()
     Call Module_UserForm.UF_SupprimerRemplacementIndividuel(Me)
+End Sub
+
+' NOUVEAU CONTROLE A CREER : btnAjouterGroupeSemaine (CommandButton),
+' caption "Ajouter un groupe pour la semaine…", onglet Auxiliaires.
+Private Sub btnAjouterGroupeSemaine_Click()
+    Call Module_UserForm.UF_AjouterGroupeSemaine(Me)
 End Sub
 
 ' Calendrier auxiliaires - navigation

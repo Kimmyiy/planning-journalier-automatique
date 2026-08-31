@@ -20,7 +20,8 @@ Option Explicit
 '
 ' Contrôles requis :
 '   txtRplAbsent   — TextBox  — Personne absente (lecture seule)
-'   txtRplDate     — TextBox  — Date du remplacement (lecture seule)
+'   txtRplDate     — TextBox  — Date du remplacement (jj.mm.aaaa, modifiable —
+'                               pré-remplie avec le jour cliqué dans le calendrier)
 '   cboRemplacant  — ComboBox — Liste des auxiliaires disponibles
 '   btnRplConfirmer — CommandButton — Confirmer
 '   btnRplAnnuler   — CommandButton — Annuler
@@ -63,8 +64,10 @@ Public Sub Initialiser()
 
     txtRplAbsent.Value = NomAbsent
     txtRplAbsent.Enabled = False
+    ' La date est pré-remplie avec le jour cliqué dans le calendrier mais
+    ' reste modifiable : un remplacement peut concerner une autre date que
+    ' celle sur laquelle on a double-cliqué (ex. correction, jour voisin).
     txtRplDate.Value = Format(DateProposee, "dd.mm.yyyy")
-    txtRplDate.Enabled = False
 
     ' Retire la personne absente de la liste des remplaçants
     Dim i As Long
@@ -81,6 +84,12 @@ End Sub
 ' BOUTON : Confirmer
 '==============================================================================
 Private Sub btnRplConfirmer_Click()
+
+    If Not IsDate(txtRplDate.Value) Then
+        MsgBox "Date invalide. Format attendu : jj.mm.aaaa", vbExclamation
+        txtRplDate.SetFocus
+        Exit Sub
+    End If
 
     If cboRemplacant.Value = "" Then
         MsgBox "Veuillez sélectionner un remplacant.", vbExclamation

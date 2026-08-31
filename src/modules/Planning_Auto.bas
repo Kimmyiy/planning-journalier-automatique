@@ -53,7 +53,7 @@ Public wsS   As Worksheet  ' Paramètres machines
 Private Type Personne
     nom          As String   ' Nom complet
     LignePers    As Long     ' Ligne dans la feuille Personnel
-    codePresence As String   ' "M" = matin, "J" = journée complète
+    codePresence As String   ' "M" = matin, "J" = journée complète, "A" = après-midi uniquement
 End Type
 
 '==============================================================================
@@ -146,12 +146,13 @@ Public Sub GenererPlanning()
     Dim nbPostesMatin As Long
     nbPostesMatin = ConstruireListePostes(postesMatin, personnes, nbPersonnes)
 
-    ' Tableau de disponibilité
+    ' Tableau de disponibilité — une personne absente le matin ("A" = présente
+    ' l'après-midi uniquement) n'est pas candidate aux postes machines du matin.
     Dim disponibles() As Boolean
     ReDim disponibles(1 To nbPersonnes)
     Dim i As Long
     For i = 1 To nbPersonnes
-        disponibles(i) = True
+        disponibles(i) = (personnes(i).codePresence <> "A")
     Next i
 
     ' Affectations aux postes machines
@@ -209,7 +210,7 @@ Public Sub GenererPlanning()
     nbOmisAM = 0
 
     For i = 1 To nbPersonnes
-        If personnes(i).codePresence = "J" Then
+        If personnes(i).codePresence = "J" Or personnes(i).codePresence = "A" Then
             If ligneAM > LIGNE_FIN_AM Then
                 nbOmisAM = nbOmisAM + 1
             Else
@@ -304,18 +305,26 @@ Private Function ChargerPersonnes(ByVal planningDate As Date, _
         typePers = Trim(wsPer.Cells(i, PERS_COL_TYPE).Value)
         groupePers = Trim(wsPer.Cells(i, PERS_COL_GROUPE).Value)
 
+        Dim nomPers As String
+        nomPers = wsPer.Cells(i, PERS_COL_NOM).Value
+
         If estJourAux Then
             ' Jour WE ou férié : uniquement les auxiliaires du groupe actif
-            ' + les remplaçants enregistrés
+            ' + les remplaçants enregistrés (l'absence éventuelle est déjà
+            ' vérifiée dans EstDisponibleAuxiliaire)
             If typePers <> "Auxiliaire" Then GoTo SuivantPers
-            If Not EstDisponibleAuxiliaire(wsPer.Cells(i, PERS_COL_NOM).Value, _
-                                           planningDate, groupePers, groupeActif) Then
+            If Not EstDisponibleAuxiliaire(nomPers, planningDate, groupePers, groupeActif) Then
                 GoTo SuivantPers
             End If
-        Else
-            ' Jour de semaine : uniquement les fixes présents selon leur horaire
-            If typePers <> "Fixe" Then GoTo SuivantPers
 
+            count = count + 1
+            personnes(count).nom = nomPers
+            personnes(count).LignePers = i
+            personnes(count).codePresence = "M"
+
+        ElseIf typePers = "Fixe" Then
+            ' Jour de semaine : les fixes présents selon leur horaire, en
+            ' tenant compte d'une éventuelle absence par demi-journée.
             Dim colHoraire As Long
             colHoraire = PERS_COL_LUN + (jourSem - 1)
             Dim codeH As String
@@ -323,22 +332,29 @@ Private Function ChargerPersonnes(ByVal planningDate As Date, _
 
             If codeH <> "M" And codeH <> "J" Then GoTo SuivantPers
 
-            ' Vérifie absence (Vacances/Congé/Maladie)
-            If EstAbsent(wsPer.Cells(i, PERS_COL_NOM).Value, planningDate) Then
-                GoTo SuivantPers
-            End If
+            Dim codeFinalFixe As String
+            codeFinalFixe = CodePresenceApresAbsence(codeH, ObtenirPeriodeAbsence(nomPers, planningDate))
+            If codeFinalFixe = "" Then GoTo SuivantPers
 
             count = count + 1
-            personnes(count).nom = wsPer.Cells(i, PERS_COL_NOM).Value
+            personnes(count).nom = nomPers
             personnes(count).LignePers = i
-            personnes(count).codePresence = codeH
-            GoTo SuivantPers
-        End If
+            personnes(count).codePresence = codeFinalFixe
 
-        count = count + 1
-        personnes(count).nom = wsPer.Cells(i, PERS_COL_NOM).Value
-        personnes(count).LignePers = i
-        personnes(count).codePresence = "M"
+        ElseIf typePers = "Auxiliaire" Then
+            ' Renfort auxiliaire en semaine (enregistré dans Tbl_Remplacements,
+            ' individuellement ou via "Ajouter un groupe pour la semaine").
+            If Not EstEnRenfort(nomPers, planningDate) Then GoTo SuivantPers
+
+            Dim codeFinalRenfort As String
+            codeFinalRenfort = CodePresenceApresAbsence("J", ObtenirPeriodeAbsence(nomPers, planningDate))
+            If codeFinalRenfort = "" Then GoTo SuivantPers
+
+            count = count + 1
+            personnes(count).nom = nomPers
+            personnes(count).LignePers = i
+            personnes(count).codePresence = codeFinalRenfort
+        End If
 
 SuivantPers:
     Next i
@@ -348,10 +364,13 @@ SuivantPers:
 End Function
 
 '==============================================================================
-' FUNCTION : EstAbsent
-' Retourne True si la personne a une absence enregistrée pour cette date.
+' FUNCTION : ObtenirPeriodeAbsence
+' Retourne la période d'absence (PERIODE_JOURNEE/MATIN/APRESMIDI) enregistrée
+' pour cette personne à cette date, ou "" si elle n'est pas absente.
+' Une ligne sans valeur de période (absences saisies avant l'ajout de cette
+' colonne) est traitée comme une absence de la journée complète.
 '==============================================================================
-Private Function EstAbsent(ByVal nom As String, ByVal dateJour As Date) As Boolean
+Private Function ObtenirPeriodeAbsence(ByVal nom As String, ByVal dateJour As Date) As String
 
     Dim dernLigne As Long
     dernLigne = wsV.Cells(wsV.Rows.count, VAC_COL_NOM).End(xlUp).Row
@@ -370,15 +389,50 @@ Private Function EstAbsent(ByVal nom As String, ByVal dateJour As Date) As Boole
             On Error GoTo 0
             If dDebut <> 0 And dFin <> 0 Then
                 If dateJour >= dDebut And dateJour <= dFin Then
-                    EstAbsent = True
+                    Dim periode As String
+                    periode = Trim(wsV.Cells(i, VAC_COL_PERIODE).Value)
+                    If periode = "" Then periode = PERIODE_JOURNEE
+                    ObtenirPeriodeAbsence = periode
                     Exit Function
                 End If
             End If
         End If
     Next i
 
-    EstAbsent = False
+    ObtenirPeriodeAbsence = ""
 
+End Function
+
+'==============================================================================
+' FUNCTION : EstAbsent
+' Retourne True si la personne a une absence enregistrée pour cette date,
+' quelle que soit la période (journée complète ou demi-journée).
+'==============================================================================
+Private Function EstAbsent(ByVal nom As String, ByVal dateJour As Date) As Boolean
+    EstAbsent = (ObtenirPeriodeAbsence(nom, dateJour) <> "")
+End Function
+
+'==============================================================================
+' FUNCTION : CodePresenceApresAbsence
+' Combine l'horaire de base ("M" ou "J") avec une période d'absence
+' éventuelle pour déterminer la présence réelle du jour :
+'   - absente toute la journée, ou absente sur le seul moment où elle
+'     travaille -> retourne "" (la personne est exclue du planning)
+'   - absente le matin seulement (horaire "J") -> "A" (présente l'après-midi)
+'   - absente l'après-midi seulement -> "M" (présente le matin uniquement)
+'   - pas d'absence -> l'horaire de base inchangé
+'==============================================================================
+Private Function CodePresenceApresAbsence(ByVal codeBase As String, ByVal periode As String) As String
+    Select Case periode
+        Case PERIODE_JOURNEE
+            CodePresenceApresAbsence = ""
+        Case PERIODE_MATIN
+            CodePresenceApresAbsence = IIf(codeBase = "M", "", "A")
+        Case PERIODE_APRESMIDI
+            CodePresenceApresAbsence = "M"
+        Case Else
+            CodePresenceApresAbsence = codeBase
+    End Select
 End Function
 
 '==============================================================================
@@ -926,6 +980,38 @@ Private Function CompterRenforts(ByVal dateJour As Date) As Long
 End Function
 
 '==============================================================================
+' FUNCTION : EstEnRenfort
+' Retourne True si cette personne est enregistrée comme renfort (ou
+' remplaçante) pour cette date dans Tbl_Remplacements. Utilisée pour intégrer
+' les auxiliaires en renfort de semaine (individuel ou groupe entier) dans le
+' planning, ce que CompterRenforts (qui ne fait que compter) ne fait pas.
+'==============================================================================
+Private Function EstEnRenfort(ByVal nom As String, ByVal dateJour As Date) As Boolean
+
+    Dim tbl As ListObject
+    On Error Resume Next
+    Set tbl = wsRpl.ListObjects(NOM_TBL_REMPLACEMENTS)
+    On Error GoTo 0
+    If tbl Is Nothing Or tbl.ListRows.count = 0 Then Exit Function
+
+    Dim i As Long
+    For i = 1 To tbl.ListRows.count
+        Dim dRpl As Date
+        dRpl = 0
+        On Error Resume Next
+        dRpl = tbl.DataBodyRange(i, RPL_COL_DATE).Value
+        On Error GoTo 0
+        If dRpl <> 0 And Int(dRpl) = Int(dateJour) Then
+            If Trim(tbl.DataBodyRange(i, RPL_COL_NOM_REMPLACANT).Value) = nom Then
+                EstEnRenfort = True
+                Exit Function
+            End If
+        End If
+    Next i
+
+End Function
+
+'==============================================================================
 ' MODIFICATION : EstDisponibleAuxiliaire
 ' Remplace la version existante dans Planning_Auto.bas
 ' Ajoute la gestion des renforts en semaine.
@@ -969,8 +1055,13 @@ Private Function EstDisponibleAuxiliaire(ByVal nom As String, _
     End If
 
     ' Pas de remplacement/renfort -> présent uniquement si son groupe est actif
-    ' Pour les jours de semaine normaux, groupeActif = "" donc toujours absent
+    ' Pour les jours de semaine normaux, groupeActif = "" donc toujours absent.
+    ' Une absence déclarée (onglet Absences) prime sur la présence de groupe :
+    ' un auxiliaire peut désormais être simplement absent sans qu'on lui ait
+    ' cherché de remplaçante.
     If groupeActif = "" Then
+        EstDisponibleAuxiliaire = False
+    ElseIf EstAbsent(nom, dateJour) Then
         EstDisponibleAuxiliaire = False
     Else
         EstDisponibleAuxiliaire = (groupePers = groupeActif)

@@ -131,6 +131,17 @@ Public Const VAC_COL_NOM         As Long = 2
 Public Const VAC_COL_DEBUT       As Long = 3
 Public Const VAC_COL_FIN         As Long = 4
 Public Const VAC_COL_TYPE        As Long = 5
+Public Const VAC_COL_PERIODE     As Long = 6
+
+'------------------------------------------------------------------------------
+' PERIODES D'ABSENCE (colonne Periode de Tbl_Vacances)
+' Une absence "Matin" ou "Après-midi" ne bloque que la moitié de la journée
+' concernée ; une ligne existante sans valeur est traitée comme "Journée"
+' (compatibilité avec les absences saisies avant l'ajout de cette colonne).
+'------------------------------------------------------------------------------
+Public Const PERIODE_JOURNEE     As String = "Journée"
+Public Const PERIODE_MATIN       As String = "Matin"
+Public Const PERIODE_APRESMIDI   As String = "Après-midi"
 
 '------------------------------------------------------------------------------
 ' COLONNES DU TABLEAU Tbl_Remplacements (feuille Remplacements)

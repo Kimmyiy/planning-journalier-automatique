@@ -859,6 +859,125 @@ Sub UF_SupprimerRemplacementIndividuel(ByVal frm As Object)
 End Sub
 
 '==============================================================================
+' ONGLET AUXILIAIRES - Ajouter tout un groupe en renfort pour une semaine
+' Utilisé quand l'entreprise prend tout un groupe d'auxiliaires (étudiants)
+' en semaine plutôt qu'un remplacement individuel. Enregistre un renfort
+' (Tbl_Remplacements, Type="Renfort") pour chaque auxiliaire actif du groupe,
+' sur les 5 jours ouvrés (lundi-vendredi) de la semaine choisie.
+'==============================================================================
+Sub UF_AjouterGroupeSemaine(ByVal frm As Object)
+
+    Dim dlg As UserForm_GroupeSemaine
+    Set dlg = New UserForm_GroupeSemaine
+
+    ' Propose par défaut le lundi de la semaine en cours
+    dlg.DateProposee = Date - (Weekday(Date, vbMonday) - 1)
+    dlg.Initialiser
+    dlg.Show
+
+    If Not dlg.Confirme Then
+        Unload dlg
+        Exit Sub
+    End If
+
+    Dim groupe   As String
+    Dim dLundi   As Date
+    groupe = dlg.cboGroupeSemaine.Value
+    dLundi = CDate(dlg.txtDebutSemaine.Value)
+    Unload dlg
+
+    Dim ws As Worksheet
+    Set ws = Sheets(NOM_FEUILLE_PERSONNEL)
+
+    Dim wsRpl As Worksheet
+    Set wsRpl = Sheets(NOM_FEUILLE_REMPLACEMENTS)
+
+    Dim tbl As ListObject
+    Set tbl = wsRpl.ListObjects(NOM_TBL_REMPLACEMENTS)
+
+    Dim dernLigne As Long
+    dernLigne = ws.Cells(ws.Rows.count, C_NOM).End(xlUp).Row
+
+    Dim nbAjoutes As Long
+    Dim nbDejaPresents As Long
+    nbAjoutes = 0
+    nbDejaPresents = 0
+
+    Dim i As Long
+    For i = 2 To dernLigne
+
+        If ws.Cells(i, C_STATUT).Value <> "Actif" Then GoTo SuivantePersonne
+        If ws.Cells(i, C_TYPE).Value <> "Auxiliaire" Then GoTo SuivantePersonne
+        If ws.Cells(i, C_GROUPE).Value <> groupe Then GoTo SuivantePersonne
+
+        Dim idPers  As String
+        Dim nomPers As String
+        idPers = ws.Cells(i, C_ID).Value
+        nomPers = ws.Cells(i, C_NOM).Value
+
+        Dim jourOffset As Long
+        For jourOffset = 0 To 4   ' Lundi a vendredi
+            Dim dateJourSemaine As Date
+            dateJourSemaine = dLundi + jourOffset
+
+            If ExisteRenfortPourJour(tbl, nomPers, dateJourSemaine) Then
+                nbDejaPresents = nbDejaPresents + 1
+            Else
+                Dim nouvRow As ListRow
+                Set nouvRow = tbl.ListRows.Add
+                nouvRow.Range(1, RPL_COL_DATE).Value = dateJourSemaine
+                nouvRow.Range(1, RPL_COL_DATE).NumberFormat = "dd.mm.yyyy"
+                nouvRow.Range(1, RPL_COL_ID_REMPLACANT).Value = idPers
+                nouvRow.Range(1, RPL_COL_NOM_REMPLACANT).Value = nomPers
+                nouvRow.Range(1, RPL_COL_TYPE).Value = "Renfort"
+                nbAjoutes = nbAjoutes + 1
+            End If
+        Next jourOffset
+
+SuivantePersonne:
+    Next i
+
+    Dim msgResultat As String
+    msgResultat = "Groupe " & groupe & " ajouté en renfort du " & _
+                  Format(dLundi, "dd.mm.yyyy") & " au " & Format(dLundi + 4, "dd.mm.yyyy") & _
+                  " :" & vbCrLf & nbAjoutes & " renfort(s) enregistré(s)."
+    If nbDejaPresents > 0 Then
+        msgResultat = msgResultat & vbCrLf & nbDejaPresents & " déjà enregistré(s), non dupliqué(s)."
+    End If
+    MsgBox msgResultat, vbInformation, "Renfort de groupe"
+
+    Call UF_ChargerCalendrierWeekend(frm)
+
+End Sub
+
+'==============================================================================
+' FUNCTION : ExisteRenfortPourJour (privée)
+' Retourne True si un renfort est déjà enregistré pour cette personne à
+' cette date, pour éviter les doublons lors de l'ajout d'un groupe entier.
+'==============================================================================
+Private Function ExisteRenfortPourJour(ByVal tbl As ListObject, ByVal nom As String, _
+                                        ByVal dateJour As Date) As Boolean
+
+    If tbl.ListRows.count = 0 Then Exit Function
+
+    Dim i As Long
+    For i = 1 To tbl.ListRows.count
+        Dim dRpl As Date
+        dRpl = 0
+        On Error Resume Next
+        dRpl = tbl.DataBodyRange(i, RPL_COL_DATE).Value
+        On Error GoTo 0
+        If dRpl <> 0 And Int(dRpl) = Int(dateJour) Then
+            If Trim(tbl.DataBodyRange(i, RPL_COL_NOM_REMPLACANT).Value) = nom Then
+                ExisteRenfortPourJour = True
+                Exit Function
+            End If
+        End If
+    Next i
+
+End Function
+
+'==============================================================================
 ' ONGLET ABSENCES - Charger la liste du personnel fixe
 '==============================================================================
 Sub UF_ChargerPersonnelAbsences(ByVal frm As Object)
@@ -872,10 +991,11 @@ Sub UF_ChargerPersonnelAbsences(ByVal frm As Object)
     Dim dernLigne As Long
     dernLigne = ws.Cells(ws.Rows.count, C_NOM).End(xlUp).Row
 
+    ' Toute personne active (Fixe ou Auxiliaire) peut être déclarée absente :
+    ' un auxiliaire absent n'a plus besoin d'être obligatoirement remplacé.
     Dim i As Long
     For i = 2 To dernLigne
-        If ws.Cells(i, C_STATUT).Value = "Actif" And _
-           ws.Cells(i, C_TYPE).Value = "Fixe" Then
+        If ws.Cells(i, C_STATUT).Value = "Actif" Then
             frm.lstAbsPersonnel.AddItem ws.Cells(i, C_NOM).Value
         End If
     Next i
@@ -905,18 +1025,21 @@ Sub UF_ChargerAbsencesPersonne(ByVal frm As Object)
 
         If Trim(wsV.Cells(i, 2).Value) = nomSelectionne Then
 
-            Dim dDebut  As Date
-            Dim dFin    As Date
-            Dim typeAbs As String
+            Dim dDebut     As Date
+            Dim dFin       As Date
+            Dim typeAbs    As String
+            Dim periodeAbs As String
 
             On Error Resume Next
             dDebut = wsV.Cells(i, 3).Value
             dFin = wsV.Cells(i, 4).Value
             On Error GoTo 0
             typeAbs = wsV.Cells(i, 5).Value
+            periodeAbs = Trim(wsV.Cells(i, VAC_COL_PERIODE).Value)
+            If periodeAbs = "" Then periodeAbs = PERIODE_JOURNEE
 
             Dim ligneAbs As String
-            ligneAbs = typeAbs & " : " & _
+            ligneAbs = typeAbs & " (" & periodeAbs & ") : " & _
                        Format(dDebut, "dd.mm.yyyy") & " -> " & Format(dFin, "dd.mm.yyyy")
 
             frm.lstAbsListe.AddItem ligneAbs
@@ -964,8 +1087,11 @@ Sub UF_EnregistrerAbsence(ByVal frm As Object)
 
     Dim nom     As String
     Dim typeAbs As String
+    Dim periodeAbs As String
     nom = frm.lstAbsPersonnel.Value
     typeAbs = frm.cboVacType.Value
+    periodeAbs = frm.cboVacPeriode.Value
+    If periodeAbs = "" Then periodeAbs = PERIODE_JOURNEE
 
     Dim ws As Worksheet
     Set ws = Sheets(NOM_FEUILLE_PERSONNEL)
@@ -995,11 +1121,12 @@ Sub UF_EnregistrerAbsence(ByVal frm As Object)
     nouvRow.Range(1, VAC_COL_DEBUT).Value = dDebut
     nouvRow.Range(1, VAC_COL_FIN).Value = dFin
     nouvRow.Range(1, VAC_COL_TYPE).Value = typeAbs
+    nouvRow.Range(1, VAC_COL_PERIODE).Value = periodeAbs
 
     MsgBox "Absence enregistrée pour " & nom & " :" & vbCrLf & _
-           typeAbs & " du " & Format(dDebut, "dd.mm.yyyy") & _
+           typeAbs & " (" & periodeAbs & ") du " & Format(dDebut, "dd.mm.yyyy") & _
            " au " & Format(dFin, "dd.mm.yyyy"), _
-           vbInformation, "Absences v2.1"
+           vbInformation, "Absences"
 
     frm.dtpVacDebut.Value = ""
     frm.dtpVacFin.Value = ""
@@ -1735,11 +1862,14 @@ Private Sub UF_AjouterAbsenceDepuisCalendrier(ByVal frm As Object, _
     End If
 
     ' Recupere les valeurs saisies
-    Dim typeAbs As String
-    Dim dDebut  As Date
-    Dim dFin    As Date
+    Dim typeAbs    As String
+    Dim periodeAbs As String
+    Dim dDebut     As Date
+    Dim dFin       As Date
 
     typeAbs = dlg.cboAbsType.Value
+    periodeAbs = dlg.cboAbsPeriode.Value
+    If periodeAbs = "" Then periodeAbs = PERIODE_JOURNEE
     dDebut = CDate(dlg.txtAbsDebut.Value)
     dFin = CDate(dlg.txtAbsFin.Value)
 
@@ -1780,8 +1910,9 @@ Private Sub UF_AjouterAbsenceDepuisCalendrier(ByVal frm As Object, _
     nouvRow.Range(1, VAC_COL_DEBUT).Value = dDebut
     nouvRow.Range(1, VAC_COL_FIN).Value = dFin
     nouvRow.Range(1, VAC_COL_TYPE).Value = typeAbs
+    nouvRow.Range(1, VAC_COL_PERIODE).Value = periodeAbs
 
-    MsgBox typeAbs & " enregistrée pour " & nomPerso & vbCrLf & _
+    MsgBox typeAbs & " (" & periodeAbs & ") enregistrée pour " & nomPerso & vbCrLf & _
            "Du " & Format(dDebut, "dd.mm.yyyy") & _
            " au " & Format(dFin, "dd.mm.yyyy"), _
            vbInformation, "Absence ajoutée"
@@ -1997,7 +2128,7 @@ Sub UF_AjouterRemplacementDepuisCalendrier(ByVal frm As Object, _
     Dim nomRempl As String
     Dim dateRpl  As Date
     nomRempl = dlg.cboRemplacant.Value
-    dateRpl = CDate(dlg.txtRplDate.Value)
+    dateRpl = CDate(dlg.txtRplDate.Value)   ' validee par IsDate dans le dialogue
 
     Unload dlg
 
@@ -2016,28 +2147,24 @@ Sub UF_AjouterRemplacementDepuisCalendrier(ByVal frm As Object, _
     If Not IsError(ligneAbs) Then idAbsent = ws.Cells(ligneAbs, C_ID).Value
     If Not IsError(ligneRpl) Then idRempl = ws.Cells(ligneRpl, C_ID).Value
 
-    ' Determine le type
-    Dim jourSem As Long
-    jourSem = Weekday(dateRpl, vbMonday)
-    Dim typeRpl As String
-    typeRpl = IIf(jourSem >= 6 Or Module_Feries.estFerie(dateRpl), "Weekend", "Semaine")
-
-    ' Enregistre dans Remplacements
+    ' Enregistre dans Remplacements — ce chemin (depuis le calendrier
+    ' personnel) enregistre toujours un vrai remplacement d'une personne
+    ' nommément absente, jamais un renfort générique.
     Dim wsRpl As Worksheet
     Set wsRpl = Sheets(NOM_FEUILLE_REMPLACEMENTS)
-    
+
     Dim tbl As ListObject
     Set tbl = wsRpl.ListObjects(NOM_TBL_REMPLACEMENTS)
     Dim nouvRow As ListRow
     Set nouvRow = tbl.ListRows.Add
-    
-    nouvRow.Range(1, 1).Value = dateRpl
-    nouvRow.Range(1, 1).NumberFormat = "dd.mm.yyyy"
-    nouvRow.Range(1, 2).Value = idAbsent
-    nouvRow.Range(1, 3).Value = nomPerso
-    nouvRow.Range(1, 4).Value = idRempl
-    nouvRow.Range(1, 5).Value = nomRempl
-    nouvRow.Range(1, 6).Value = typeRpl
+
+    nouvRow.Range(1, RPL_COL_DATE).Value = dateRpl
+    nouvRow.Range(1, RPL_COL_DATE).NumberFormat = "dd.mm.yyyy"
+    nouvRow.Range(1, RPL_COL_ID_ABSENTE).Value = idAbsent
+    nouvRow.Range(1, RPL_COL_NOM_ABSENTE).Value = nomPerso
+    nouvRow.Range(1, RPL_COL_ID_REMPLACANT).Value = idRempl
+    nouvRow.Range(1, RPL_COL_NOM_REMPLACANT).Value = nomRempl
+    nouvRow.Range(1, RPL_COL_TYPE).Value = "Remplacement"
 
     MsgBox "Remplacement enregistré :" & vbCrLf & _
            nomRempl & " remplace " & nomPerso & vbCrLf & _
