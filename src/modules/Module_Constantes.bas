@@ -28,8 +28,8 @@ Public Const NOM_FEUILLE_FERIES         As String = "Feries"
 Public Const NOM_FEUILLE_REMPLACEMENTS  As String = "Remplacements"
 Public Const NOM_FEUILLE_GROUPES        As String = "Groupes"
 Public Const NOM_FEUILLE_PARAMETRES     As String = "Parametres"
-Public Const NOM_FEUILLE_LISTES         As String = "Listes"
-Public Const NOM_FEUILLE_INDEX          As String = "Index des versions"
+Public Const NOM_FEUILLE_LISTES         As String = "Liste"
+Public Const NOM_FEUILLE_INDEX          As String = "Index des Versions"
 
 '------------------------------------------------------------------------------
 ' NOMS DES TABLEAUX EXCEL (ListObjects)
