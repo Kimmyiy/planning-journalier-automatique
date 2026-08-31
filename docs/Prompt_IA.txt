@@ -1,0 +1,101 @@
+================================================================================
+ PROMPT DE DEMARRAGE - PLANNING JOURNALIER AUTOMATIQUE v2.0.0
+ A utiliser tel quel pour reprendre le projet avec Claude (Anthropic)
+ Dernière mise à jour : 11.06.2026 14:46
+================================================================================
+
+Bonjour,
+
+Je travaille sur un projet VBA Excel appelé "Planning Journalier Automatique"
+développe avec l'aide de Claude (Anthropic). Je suis le seul développeur.
+Tous les échanges sont en francais.
+
+--- CONTEXTE METIER ---
+Affectation journalière d'opératrices sur des machines de production.
+  - Personnel fixe (semaine) et auxiliaires (weekends et jours feries)
+  - Aptitudes par machine (Vaox5-A/B/C postes 1/2/3, Vaox5-D, Vaox1 A&B)
+  - Equilibrage des passages via statistiques historiques
+  - Double seuil de quantité pour 1/2/3 personnes par machine
+  - Tri dynamique v1.2.3 : machine la moins dotée remplie en premier
+  - Tirage aléatoire pour les ex-aequo de statistiques
+  - Groupes auxiliaires G1/G2 en alternance par weekend (tournus annuel)
+  - Export PDF stats hebdomadaires automatique chaque lundi
+  - Renforts auxiliaires en semaine enregistrés dans Tbl_Remplacements
+  - Notification manque de personnel sur 14 jours à chaque génération
+
+--- ARCHITECTURE v2.0.0 ---
+  Feuilles Excel :
+    Planning journalier, Personnel, Vacances, Fériés,
+    Remplacements, Groupes, Paramètres, Listes, Index des versions
+
+  Tableaux nommés :
+    Tbl_Personnel, Tbl_Vacances, Tbl_Feries, Tbl_Remplacements,
+    Dates_Groupes, Tbl_Parametres
+    IMPORTANT : toutes les écritures dans ces tableaux se font via
+    ListObject.ListRows.Add (jamais via ws.Cells directement)
+
+  Modules VBA :
+    Module_Constantes  - Toutes les constantes (feuilles, tableaux, types)
+    Module_Types       - Type public JourCalendrier
+    Planning_Auto      - Génération planning, affectation, stats
+                         GenererPlanning(), ChargerPersonnes(),
+                         ConstruireListePostes(), ChoisirPersonne(),
+                         IncrementStats(), EcrireAffectationsMatin()
+    Commande_Bouton    - Boutons dates, impression + auto-save + stats hebdo
+                         ImprimerPlanning(), DatePlusUn/MoinsUn()
+    Module_Feries      - Fériés Neuchâtel, fermetures entreprise
+                         ChargerFeriesAnnee(), EstFerie(), EstFermeture(),
+                         GenererMoisCalendrier(), AjouterFermeturePeriode()
+                         Ecriture via Tbl_Feries (ListObject)
+    Module_Groupes     - Groupes G1/G2 par weekend et férié
+                         GetGroupeJour(), SetGroupeJour(),
+                         GenererGroupesAnnee()
+                         Ecriture via Dates_Groupes (ListObject)
+    Module_UserForm    - Logique métier de tous les onglets du UserForm
+                         Calendriers personnel et auxiliaire,
+                         absences, remplacements, impression fiche
+                         Ecriture via Tbl_Remplacements (ListObject)
+    Module_StatsHebdo  - PDF stats hebdomadaires (chaque lundi à l'impression)
+                         ImprimerStatsHebdo() - généré _Stats_Temp puis PDF
+                         Archive dans Archives\Stats\
+    Module intégré dans Planning_Auto et Module_UserForm :
+    Renforts auxiliaires en semaine (type Renfort dans Tbl_Remplacements)
+    Notification effectif insuffisant sur 14 jours (cellule Effectif_Minimum)
+    VerifierEffectifSemaine(), CompterFixesPresents(), CompterRenforts()
+    Export_Serveur     - Export serveur protege MDP + documentation
+
+  UserForms :
+    UserForm_GestionPersonnel  - 5 onglets : Personnel / Auxiliaires /
+                                Absences / Calendrier / Parametres
+    UserForm_Absence           - Ajout absence depuis calendrier personnel
+    UserForm_Remplacement      - Enregistrement remplacement auxiliaire
+    UserForm_GroupeAux         - Attribution G1/G2 sur calendrier auxiliaires
+    UserForm_ImpressionFiche   - Choix sections avant impression fiche
+
+--- CONVENTIONS DE CODE ---
+  - Option Explicit dans tous les modules
+  - Toutes les constantes centralisées dans Module_Constantes
+  - Colonnes référencees par constantes (PERS_COL_xxx, PARAM_xxx)
+  - Ecriture dans les tableaux TOUJOURS via ListObject.ListRows.Add
+  - Jamais via ws.Cells() pour écrire dans un ListObject
+  - Commentaires en francais avec accents
+  - Gestion d'erreurs avec On Error / MsgBox explicites
+  - Logique métier dans Module_UserForm, évènements dans le UserForm
+  - Préférences de livraison : fichiers .bas complets, prêts à coller
+  - Discuter et valider avant de coder
+
+--- VERSION ---
+  Version courante : v2.0.0 (11.06.2026 14:46)
+  L'index des versions dans Excel détaille toutes les modifications.
+
+--- POUR CONTINUER LE PROJET ---
+Je vais te partager les fichiers .bas concernés par la modification souhaitée.
+Merci de :
+  1. Lire et comprendre le code existant avant de proposer des modifications
+  2. Discuter et valider la compréhension avant d'écrire du code
+  3. Conserver les conventions de code listées ci-dessus
+  4. Me proposer des fichiers .bas complets prêts à copier-coller
+  5. Me lister les changements pour l'Index des versions
+
+================================================================================
+
