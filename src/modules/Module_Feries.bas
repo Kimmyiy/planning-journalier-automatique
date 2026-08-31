@@ -94,16 +94,30 @@ Sub ChargerFeriesAnnee(ByVal annee As Long)
         Exit Sub
     End If
 
-    ' Supprime uniquement les fériés automatiques de cette année
+    ' Supprime uniquement les fériés automatiques de cette année.
+    ' IMPORTANT : les fermetures d'entreprise (TYPE_FERIE_FERMETURE) sont
+    ' préservées au même titre que les fériés manuels — sans ce garde-fou,
+    ' toute ré-exécution de ChargerFeriesAnnee effacerait silencieusement
+    ' les périodes de fermeture déjà saisies pour l'année.
+    Dim tbl As ListObject
+    Set tbl = ws.ListObjects(NOM_TBL_FERIES)
+
     Dim i As Long
     i = ws.Cells(ws.Rows.count, CF_DATE).End(xlUp).Row
     Do While i >= 2
         Dim d As Date
+        d = 0
         On Error Resume Next
         d = ws.Cells(i, CF_DATE).Value
         On Error GoTo 0
-        If Year(d) = annee And ws.Cells(i, CF_TYPE).Value <> TYPE_FERIE_MANUEL Then
-            ws.Rows(i).Delete
+        If d <> 0 Then
+            If Year(d) = annee _
+               And ws.Cells(i, CF_TYPE).Value <> TYPE_FERIE_MANUEL _
+               And ws.Cells(i, CF_TYPE).Value <> TYPE_FERIE_FERMETURE Then
+                ' Suppression via ListObject (convention du projet) au lieu
+                ' de ws.Rows(i).Delete, qui efface toute la largeur de la ligne.
+                tbl.ListRows(i - tbl.HeaderRowRange.Row).Delete
+            End If
         End If
         i = i - 1
     Loop
@@ -149,8 +163,6 @@ Sub ChargerFeriesAnnee(ByVal annee As Long)
     Dim k As Integer
     For k = 0 To 11
         If feries(k, 0) <> 0 And feries(k, 1) <> "" Then
-            Dim tbl As ListObject
-            Set tbl = ws.ListObjects(NOM_TBL_FERIES)
             Dim nouvRow As ListRow
             Set nouvRow = tbl.ListRows.Add
             nouvRow.Range(1, CF_DATE).Value = feries(k, 0)
@@ -202,25 +214,33 @@ Sub SupprimerFerie(ByVal dateJour As Date)
     Dim ws As Worksheet
     Set ws = Sheets(NOM_FEUILLE_FERIES)
 
+    Dim tbl As ListObject
+    Set tbl = ws.ListObjects(NOM_TBL_FERIES)
+
     Dim i As Long
     i = ws.Cells(ws.Rows.count, CF_DATE).End(xlUp).Row
 
     Do While i >= 2
         Dim d As Date
+        d = 0
         On Error Resume Next
         d = ws.Cells(i, CF_DATE).Value
         On Error GoTo 0
 
-        If Int(d) = Int(dateJour) Then
-            If ws.Cells(i, CF_TYPE).Value <> TYPE_FERIE_MANUEL Then
-                Dim rep As VbMsgBoxResult
-                rep = MsgBox("Ce férié est calculé automatiquement." & vbCrLf & _
-                             "Voulez-vous quand même le supprimer ?", _
-                             vbYesNo + vbQuestion, "Supprimer le férié")
-                If rep = vbNo Then Exit Sub
+        If d <> 0 Then
+            If Int(d) = Int(dateJour) Then
+                If ws.Cells(i, CF_TYPE).Value <> TYPE_FERIE_MANUEL Then
+                    Dim rep As VbMsgBoxResult
+                    rep = MsgBox("Ce férié est calculé automatiquement." & vbCrLf & _
+                                 "Voulez-vous quand même le supprimer ?", _
+                                 vbYesNo + vbQuestion, "Supprimer le férié")
+                    If rep = vbNo Then Exit Sub
+                End If
+                ' Suppression via ListObject (convention du projet) au lieu
+                ' de ws.Rows(i).Delete, qui efface toute la largeur de la ligne.
+                tbl.ListRows(i - tbl.HeaderRowRange.Row).Delete
+                Exit Sub
             End If
-            ws.Rows(i).Delete
-            Exit Sub
         End If
 
         i = i - 1
@@ -247,10 +267,11 @@ Function estFerie(ByVal dateJour As Date) As Boolean
     Dim i As Long
     For i = 2 To dernLigne
         Dim d As Date
+        d = 0
         On Error Resume Next
         d = ws.Cells(i, CF_DATE).Value
         On Error GoTo 0
-        If Int(d) = Int(dateJour) Then
+        If d <> 0 And Int(d) = Int(dateJour) Then
             estFerie = True
             Exit Function
         End If
@@ -303,10 +324,11 @@ Function GetNomFerie(ByVal dateJour As Date) As String
     Dim i As Long
     For i = 2 To dernLigne
         Dim d As Date
+        d = 0
         On Error Resume Next
         d = ws.Cells(i, CF_DATE).Value
         On Error GoTo 0
-        If Int(d) = Int(dateJour) Then
+        If d <> 0 And Int(d) = Int(dateJour) Then
             GetNomFerie = ws.Cells(i, CF_NOM).Value
             Exit Function
         End If
@@ -323,8 +345,16 @@ Sub AjouterFermeturePeriode(ByVal dDebut As Date, _
                               ByVal dFin As Date, _
                               ByVal nom As String)
 
+    If dFin < dDebut Then
+        MsgBox "La date de fin doit être postérieure à la date de début.", vbExclamation
+        Exit Sub
+    End If
+
     Dim ws As Worksheet
     Set ws = Sheets(NOM_FEUILLE_FERIES)
+
+    Dim tbl As ListObject
+    Set tbl = ws.ListObjects(NOM_TBL_FERIES)
 
     Dim dateCase As Date
     For dateCase = dDebut To dFin
@@ -334,20 +364,22 @@ Sub AjouterFermeturePeriode(ByVal dDebut As Date, _
 
         If IsError(ligne) Then
             ' La date n'existe pas — crée une nouvelle ligne
-            Dim tbl As ListObject
-            Set tbl = ws.ListObjects(NOM_TBL_FERIES)
             Dim nouvRow As ListRow
             Set nouvRow = tbl.ListRows.Add
             nouvRow.Range(1, CF_DATE).Value = dateCase
             nouvRow.Range(1, CF_DATE).NumberFormat = "dd.mm.yyyy"
             nouvRow.Range(1, CF_NOM).Value = nom
             nouvRow.Range(1, CF_TYPE).Value = TYPE_FERIE_FERMETURE
-            
+
         Else
-            ' La date existe — met à jour le type
-            ws.Cells(ligne, CF_TYPE).Value = TYPE_FERIE_FERMETURE
-            If Trim(ws.Cells(ligne, CF_NOM).Value) = "" Then
-                ws.Cells(ligne, CF_NOM).Value = nom
+            ' La date existe — met à jour le type via le ListObject
+            ' (convention du projet) au lieu d'écrire directement via
+            ' ws.Cells() dans les cellules du tableau.
+            Dim ligneTbl As Long
+            ligneTbl = CLng(ligne) - tbl.HeaderRowRange.Row
+            tbl.ListRows(ligneTbl).Range(1, CF_TYPE).Value = TYPE_FERIE_FERMETURE
+            If Trim(tbl.ListRows(ligneTbl).Range(1, CF_NOM).Value) = "" Then
+                tbl.ListRows(ligneTbl).Range(1, CF_NOM).Value = nom
             End If
         End If
 
@@ -359,7 +391,7 @@ End Sub
 
 '==============================================================================
 ' FUNCTION : GenererMoisCalendrier
-' Génère un tableau de 42 cases (6 semaines Ã— 7 jours) pour un mois donné.
+' Génère un tableau de 42 cases (6 semaines x 7 jours) pour un mois donné.
 ' Utilisée par les calendriers du UserForm.
 '==============================================================================
 Function GenererMoisCalendrier(ByVal annee As Long, _
@@ -394,8 +426,16 @@ Function GenererMoisCalendrier(ByVal annee As Long, _
         jours(i).estFerie = estFerie(dateCase)
         jours(i).nomFerie = GetNomFerie(dateCase)
 
-        ' Groupe G1/G2 : lit depuis la feuille Groupes en priorité
-        If jours(i).estWE Or jours(i).estFerie Then
+        ' Groupe G1/G2 : lit depuis la feuille Groupes en priorité.
+        ' Une fermeture d'entreprise (congés collectifs) n'est PAS un jour
+        ' nécessitant un roulement auxiliaire : personne ne travaille ce
+        ' jour-là, ni fixe ni auxiliaire. Sans cette exclusion, une semaine
+        ' de fermeture se voyait attribuer un groupe G1/G2 comme un vrai
+        ' jour férié.
+        Dim estJourFerieAux As Boolean
+        estJourFerieAux = jours(i).estFerie And Not EstFermeture(dateCase)
+
+        If jours(i).estWE Or estJourFerieAux Then
             Dim groupeFeuille As String
             groupeFeuille = Module_Groupes.GetGroupeJour(dateCase)
             If groupeFeuille <> "" Then

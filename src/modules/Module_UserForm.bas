@@ -339,7 +339,7 @@ End Sub
 Function UF_EnregistrerFiche(ByVal frm As Object) As Boolean
 
     Dim ws As Worksheet
-    Set ws = Sheets("Personnel")
+    Set ws = Sheets(NOM_FEUILLE_PERSONNEL)
 
     If Trim(frm.txtNom.Value) = "" Then
         MsgBox "Le nom ne peut pas être vide.", vbExclamation, "Validation"
@@ -352,7 +352,15 @@ Function UF_EnregistrerFiche(ByVal frm As Object) As Boolean
 
     If frm.txtLigneActive.Value = "" Or frm.txtLigneActive.Value = "0" Then
         estNouvelle = True
-        ligne = ws.Cells(ws.Rows.count, C_NOM).End(xlUp).Row + 1
+        ' Ajout via ListObject.ListRows.Add (convention du projet) au lieu
+        ' d'écrire directement sous la dernière ligne via ws.Cells() : cela
+        ' garantit que la nouvelle fiche est bien intégrée à Tbl_Personnel,
+        ' visible pour ChargerPersonnes() lors de la génération du planning.
+        Dim tbl As ListObject
+        Set tbl = ws.ListObjects(NOM_TBL_PERSONNEL)
+        Dim nouvRow As ListRow
+        Set nouvRow = tbl.ListRows.Add
+        ligne = nouvRow.Range.Row
         ws.Cells(ligne, C_ID).Value = GenererID(ws)
     Else
         ligne = CLng(frm.txtLigneActive.Value)
@@ -726,6 +734,11 @@ Sub UF_EnregistrerRemplacement(ByVal frm As Object)
         Exit Sub
     End If
 
+    If Not IsDate(frm.dtpDateRemplacement.Value) Then
+        MsgBox "Date invalide. Format attendu : jj.mm.aaaa", vbExclamation, "Validation"
+        Exit Sub
+    End If
+
     ' Pour un renfort, la personne absente est optionnelle
     Dim typeRpl As String
     typeRpl = frm.cboTypeRpl.Value
@@ -779,13 +792,13 @@ Sub UF_EnregistrerRemplacement(ByVal frm As Object)
     Dim nouvRow As ListRow
     Set nouvRow = tbl.ListRows.Add
 
-    nouvRow.Range(1, 1).Value = dateRpl
-    nouvRow.Range(1, 1).NumberFormat = "dd.mm.yyyy"
-    nouvRow.Range(1, 2).Value = idAbsente
-    nouvRow.Range(1, 3).Value = nomAbsente
-    nouvRow.Range(1, 4).Value = idRempl
-    nouvRow.Range(1, 5).Value = nomRempl
-    nouvRow.Range(1, 6).Value = typeRpl
+    nouvRow.Range(1, RPL_COL_DATE).Value = dateRpl
+    nouvRow.Range(1, RPL_COL_DATE).NumberFormat = "dd.mm.yyyy"
+    nouvRow.Range(1, RPL_COL_ID_ABSENTE).Value = idAbsente
+    nouvRow.Range(1, RPL_COL_NOM_ABSENTE).Value = nomAbsente
+    nouvRow.Range(1, RPL_COL_ID_REMPLACANT).Value = idRempl
+    nouvRow.Range(1, RPL_COL_NOM_REMPLACANT).Value = nomRempl
+    nouvRow.Range(1, RPL_COL_TYPE).Value = typeRpl
 
     ' Message de confirmation
     Dim msgConf As String
@@ -830,9 +843,13 @@ Sub UF_SupprimerRemplacementIndividuel(ByVal frm As Object)
     If rep = vbNo Then Exit Sub
 
     Dim wsRpl As Worksheet
-    Set wsRpl = Sheets("Remplacements")
+    Set wsRpl = Sheets(NOM_FEUILLE_REMPLACEMENTS)
 
-    wsRpl.Rows(CLng(ligneStr)).Delete
+    ' Suppression via ListObject (convention du projet) au lieu de
+    ' wsRpl.Rows(...).Delete.
+    Dim tbl As ListObject
+    Set tbl = wsRpl.ListObjects(NOM_TBL_REMPLACEMENTS)
+    tbl.ListRows(CLng(ligneStr) - tbl.HeaderRowRange.Row).Delete
 
     MsgBox "Remplacement supprimé.", vbInformation, "Auxiliaires v2.0"
 
@@ -929,6 +946,11 @@ Sub UF_EnregistrerAbsence(ByVal frm As Object)
         Exit Sub
     End If
 
+    If Not IsDate(frm.dtpVacDebut.Value) Or Not IsDate(frm.dtpVacFin.Value) Then
+        MsgBox "Date invalide. Format attendu : jj.mm.aaaa", vbExclamation, "Validation"
+        Exit Sub
+    End If
+
     Dim dDebut As Date
     Dim dFin   As Date
     dDebut = CDate(frm.dtpVacDebut.Value)
@@ -946,21 +968,33 @@ Sub UF_EnregistrerAbsence(ByVal frm As Object)
     typeAbs = frm.cboVacType.Value
 
     Dim ws As Worksheet
-    Set ws = Sheets("Personnel")
+    Set ws = Sheets(NOM_FEUILLE_PERSONNEL)
     Dim idPerso As String
     idPerso = TrouverID(ws, nom)
 
     Dim wsV As Worksheet
-    Set wsV = Sheets("Vacances")
+    Set wsV = Sheets(NOM_FEUILLE_VACANCES)
 
-    Dim nouvLigne As Long
-    nouvLigne = wsV.Cells(wsV.Rows.count, 2).End(xlUp).Row + 1
+    If ExisteAbsenceChevauchante(wsV, nom, dDebut, dFin) Then
+        Dim repChevauchement As VbMsgBoxResult
+        repChevauchement = MsgBox("Une absence existe déjà pour " & nom & _
+               " sur une période qui chevauche ces dates." & vbCrLf & _
+               "Enregistrer quand même ?", vbYesNo + vbExclamation, "Chevauchement détecté")
+        If repChevauchement = vbNo Then Exit Sub
+    End If
 
-    wsV.Cells(nouvLigne, 1).Value = idPerso
-    wsV.Cells(nouvLigne, 2).Value = nom
-    wsV.Cells(nouvLigne, 3).Value = dDebut
-    wsV.Cells(nouvLigne, 4).Value = dFin
-    wsV.Cells(nouvLigne, 5).Value = typeAbs
+    ' Ajout via ListObject.ListRows.Add (convention du projet) au lieu
+    ' d'écrire directement sous la dernière ligne via ws.Cells().
+    Dim tbl As ListObject
+    Set tbl = wsV.ListObjects(NOM_TBL_VACANCES)
+    Dim nouvRow As ListRow
+    Set nouvRow = tbl.ListRows.Add
+
+    nouvRow.Range(1, VAC_COL_ID).Value = idPerso
+    nouvRow.Range(1, VAC_COL_NOM).Value = nom
+    nouvRow.Range(1, VAC_COL_DEBUT).Value = dDebut
+    nouvRow.Range(1, VAC_COL_FIN).Value = dFin
+    nouvRow.Range(1, VAC_COL_TYPE).Value = typeAbs
 
     MsgBox "Absence enregistrée pour " & nom & " :" & vbCrLf & _
            typeAbs & " du " & Format(dDebut, "dd.mm.yyyy") & _
@@ -973,6 +1007,41 @@ Sub UF_EnregistrerAbsence(ByVal frm As Object)
     Call UF_ChargerAbsencesPersonne(frm)
 
 End Sub
+
+'==============================================================================
+' FUNCTION : ExisteAbsenceChevauchante
+' Retourne True si une absence existe déjà pour cette personne sur une
+' période qui chevauche [dDebut ; dFin]. Évite les doublons/chevauchements
+' silencieux dans Tbl_Vacances.
+'==============================================================================
+Private Function ExisteAbsenceChevauchante(ByVal wsV As Worksheet, ByVal nom As String, _
+                                            ByVal dDebut As Date, ByVal dFin As Date) As Boolean
+
+    Dim tbl As ListObject
+    On Error Resume Next
+    Set tbl = wsV.ListObjects(NOM_TBL_VACANCES)
+    On Error GoTo 0
+    If tbl Is Nothing Or tbl.ListRows.count = 0 Then Exit Function
+
+    Dim i As Long
+    For i = 1 To tbl.ListRows.count
+        If Trim(tbl.DataBodyRange(i, VAC_COL_NOM).Value) = nom Then
+            Dim dD As Date, dF As Date
+            dD = 0: dF = 0
+            On Error Resume Next
+            dD = tbl.DataBodyRange(i, VAC_COL_DEBUT).Value
+            dF = tbl.DataBodyRange(i, VAC_COL_FIN).Value
+            On Error GoTo 0
+            If dD <> 0 And dF <> 0 Then
+                If dDebut <= dF And dFin >= dD Then
+                    ExisteAbsenceChevauchante = True
+                    Exit Function
+                End If
+            End If
+        End If
+    Next i
+
+End Function
 
 '==============================================================================
 ' ONGLET ABSENCES - Supprimer une absence selectionnee dans lstAbsListe
@@ -995,9 +1064,14 @@ Sub UF_SupprimerAbsence(ByVal frm As Object)
     If rep = vbNo Then Exit Sub
 
     Dim wsV As Worksheet
-    Set wsV = Sheets("Vacances")
+    Set wsV = Sheets(NOM_FEUILLE_VACANCES)
 
-    wsV.Rows(CLng(ligneStr)).Delete
+    ' Suppression via ListObject (convention du projet) au lieu de
+    ' wsV.Rows(...).Delete, qui supprime la ligne sur toute la largeur
+    ' de la feuille et pas seulement les colonnes du tableau.
+    Dim tbl As ListObject
+    Set tbl = wsV.ListObjects(NOM_TBL_VACANCES)
+    tbl.ListRows(CLng(ligneStr) - tbl.HeaderRowRange.Row).Delete
 
     MsgBox "Absence supprimée.", vbInformation, "Absences v2.0"
 
@@ -1635,158 +1709,6 @@ Sub UF_CalendrierMoisSuivant(ByVal frm As Object)
 
 End Sub
 
-'==============================================================================
-' SUB : UF_DoubleclicCalendrier
-' Appele par les 42 evenements DblClick des lblCalX
-' Affiche les infos du jour et propose ajout/suppression absence
-'==============================================================================
-Sub UF_DoubleclicCalendrier(ByVal frm As Object, ByVal indexJour As Integer)
-
-    ' Recupere la date de la case
-    Dim lbl As MSForms.Label
-    Set lbl = frm.Controls("lblCal" & indexJour)
-
-    If lbl.Tag = "" Or lbl.Caption = "" Then Exit Sub
-
-    Dim dateJour As Date
-    dateJour = CDate(CDbl(lbl.Tag))
-
-    ' Verifie que le jour est dans le mois affiche
-    Dim moisCal  As Long
-    Dim anneeCal As Long
-    moisCal = CLng(frm.txtCalMois.Value)
-    anneeCal = CLng(frm.txtCalAnnee.Value)
-
-    If Month(dateJour) <> moisCal Or Year(dateJour) <> anneeCal Then Exit Sub
-
-    ' Recupere la personne selectionnee
-    If frm.lstPersonnel.ListIndex = -1 Then Exit Sub
-
-    Dim ligneStr As String
-    ligneStr = frm.lstPersonnel.List(frm.lstPersonnel.ListIndex, 2)
-    If ligneStr = "" Then Exit Sub
-
-    Dim LignePers As Long
-    LignePers = CLng(ligneStr)
-
-    Dim ws As Worksheet
-    Set ws = Sheets("Personnel")
-
-    Dim nomPerso   As String
-    Dim typePerso  As String
-    nomPerso = ws.Cells(LignePers, C_NOM).Value
-    typePerso = ws.Cells(LignePers, C_TYPE).Value
-
-    ' --- Construit le message d infos ---
-    Dim msgInfos As String
-    msgInfos = Format(dateJour, "dddd dd.mm.yyyy") & vbCrLf
-    msgInfos = msgInfos & String(40, "-") & vbCrLf
-
-    ' Jour ferie ?
-    If Module_Feries.estFerie(dateJour) Then
-        msgInfos = msgInfos & "Jour ferie : " & Module_Feries.GetNomFerie(dateJour) & vbCrLf
-    End If
-
-    ' Horaire du jour
-    Dim jourSem As Long
-    jourSem = Weekday(dateJour, vbMonday)
-
-    If typePerso = "Fixe" Then
-        If jourSem <= 5 Then
-            Dim codeH As String
-            codeH = Trim(ws.Cells(LignePers, C_LUN + (jourSem - 1)).Value)
-            Select Case codeH
-                Case "M": msgInfos = msgInfos & "Horaire : Matin" & vbCrLf
-                Case "J": msgInfos = msgInfos & "Horaire : Journee complete" & vbCrLf
-                Case Else: msgInfos = msgInfos & "Horaire : Absent" & vbCrLf
-            End Select
-        Else
-            msgInfos = msgInfos & "Horaire : Weekend" & vbCrLf
-        End If
-    End If
-
-    ' Absence existante ?
-    Dim wsV As Worksheet
-    Set wsV = Sheets("Vacances")
-    Dim dernLigne As Long
-    dernLigne = wsV.Cells(wsV.Rows.count, 2).End(xlUp).Row
-
-    Dim ligneAbsence As Long
-    Dim typeAbsExist As String
-    ligneAbsence = 0
-
-    Dim j As Long
-    For j = 2 To dernLigne
-        If Trim(wsV.Cells(j, 2).Value) = nomPerso Then
-            Dim dDebut As Date
-            Dim dFin   As Date
-            On Error Resume Next
-            dDebut = wsV.Cells(j, 3).Value
-            dFin = wsV.Cells(j, 4).Value
-            On Error GoTo 0
-            If dateJour >= dDebut And dateJour <= dFin Then
-                ligneAbsence = j
-                typeAbsExist = wsV.Cells(j, 5).Value
-                msgInfos = msgInfos & "Absence : " & typeAbsExist & vbCrLf & _
-                           "  Du " & Format(dDebut, "dd.mm.yyyy") & _
-                           " au " & Format(dFin, "dd.mm.yyyy") & vbCrLf
-                Exit For
-            End If
-        End If
-    Next j
-
-    ' Remplacement (auxiliaires)
-    If typePerso = "Auxiliaire" Then
-        Dim wsRpl As Worksheet
-        Set wsRpl = Sheets("Remplacements")
-        Dim dernRpl As Long
-        dernRpl = wsRpl.Cells(wsRpl.Rows.count, 1).End(xlUp).Row
-        Dim k As Long
-        For k = 2 To dernRpl
-            Dim dRpl As Date
-            On Error Resume Next
-            dRpl = wsRpl.Cells(k, 1).Value
-            On Error GoTo 0
-            If Int(dRpl) = Int(dateJour) Then
-                If Trim(wsRpl.Cells(k, 5).Value) = nomPerso Then
-                    msgInfos = msgInfos & "Remplace : " & wsRpl.Cells(k, 3).Value & vbCrLf
-                End If
-                If Trim(wsRpl.Cells(k, 3).Value) = nomPerso Then
-                    msgInfos = msgInfos & "Remplacee par : " & wsRpl.Cells(k, 5).Value & vbCrLf
-                End If
-            End If
-        Next k
-    End If
-
-    ' --- Propose les actions ---
-    Dim msgAction As String
-    Dim choix     As VbMsgBoxResult
-
-    If ligneAbsence > 0 Then
-        ' Absence existante : proposer suppression
-        msgAction = msgInfos & vbCrLf & _
-                    "Voulez-vous supprimer cette absence ?"
-        choix = MsgBox(msgAction, vbYesNo + vbQuestion, nomPerso & " - " & Format(dateJour, "dd.mm.yyyy"))
-
-        If choix = vbYes Then
-            wsV.Rows(ligneAbsence).Delete
-            MsgBox "Absence supprimée.", vbInformation, "Calendrier"
-            Call UF_ChargerCalendrierPersonnel(frm)
-        End If
-
-    Else
-        ' Pas d absence : proposer ajout
-        msgAction = msgInfos & vbCrLf & _
-                    "Voulez-vous ajouter une absence pour ce jour ?"
-        choix = MsgBox(msgAction, vbYesNo + vbQuestion, nomPerso & " - " & Format(dateJour, "dd.mm.yyyy"))
-
-        If choix = vbYes Then
-            Call UF_AjouterAbsenceDepuisCalendrier(frm, nomPerso, dateJour)
-        End If
-
-    End If
-
-End Sub
 
 '==============================================================================
 ' SUB : UF_AjouterAbsenceDepuisCalendrier
@@ -1825,7 +1747,7 @@ Private Sub UF_AjouterAbsenceDepuisCalendrier(ByVal frm As Object, _
 
     ' Recupere l ID de la personne
     Dim ws As Worksheet
-    Set ws = Sheets("Personnel")
+    Set ws = Sheets(NOM_FEUILLE_PERSONNEL)
 
     Dim idPerso  As String
     Dim lignePer As Variant
@@ -1834,18 +1756,30 @@ Private Sub UF_AjouterAbsenceDepuisCalendrier(ByVal frm As Object, _
         idPerso = ws.Cells(lignePer, C_ID).Value
     End If
 
-    ' Enregistre dans la feuille Vacances
+    ' Enregistre dans la feuille Vacances via ListObject.ListRows.Add
+    ' (convention du projet) au lieu d'écrire directement sous la
+    ' dernière ligne via ws.Cells().
     Dim wsV As Worksheet
-    Set wsV = Sheets("Vacances")
+    Set wsV = Sheets(NOM_FEUILLE_VACANCES)
 
-    Dim nouvLigne As Long
-    nouvLigne = wsV.Cells(wsV.Rows.count, 2).End(xlUp).Row + 1
+    If ExisteAbsenceChevauchante(wsV, nomPerso, dDebut, dFin) Then
+        Dim repChevauchement As VbMsgBoxResult
+        repChevauchement = MsgBox("Une absence existe déjà pour " & nomPerso & _
+               " sur une période qui chevauche ces dates." & vbCrLf & _
+               "Enregistrer quand même ?", vbYesNo + vbExclamation, "Chevauchement détecté")
+        If repChevauchement = vbNo Then Exit Sub
+    End If
 
-    wsV.Cells(nouvLigne, 1).Value = idPerso
-    wsV.Cells(nouvLigne, 2).Value = nomPerso
-    wsV.Cells(nouvLigne, 3).Value = dDebut
-    wsV.Cells(nouvLigne, 4).Value = dFin
-    wsV.Cells(nouvLigne, 5).Value = typeAbs
+    Dim tbl As ListObject
+    Set tbl = wsV.ListObjects(NOM_TBL_VACANCES)
+    Dim nouvRow As ListRow
+    Set nouvRow = tbl.ListRows.Add
+
+    nouvRow.Range(1, VAC_COL_ID).Value = idPerso
+    nouvRow.Range(1, VAC_COL_NOM).Value = nomPerso
+    nouvRow.Range(1, VAC_COL_DEBUT).Value = dDebut
+    nouvRow.Range(1, VAC_COL_FIN).Value = dFin
+    nouvRow.Range(1, VAC_COL_TYPE).Value = typeAbs
 
     MsgBox typeAbs & " enregistrée pour " & nomPerso & vbCrLf & _
            "Du " & Format(dDebut, "dd.mm.yyyy") & _
@@ -2016,7 +1950,10 @@ Sub UF_DoubleclicCalendrierAuxiliaire(ByVal frm As Object, _
                        vbYesNo + vbQuestion, nomPerso)
 
         If choix = vbYes Then
-            wsRpl.Rows(ligneRpl).Delete
+            ' Suppression via ListObject (convention du projet).
+            Dim tblRplDel As ListObject
+            Set tblRplDel = wsRpl.ListObjects(NOM_TBL_REMPLACEMENTS)
+            tblRplDel.ListRows(ligneRpl - tblRplDel.HeaderRowRange.Row).Delete
             MsgBox "Remplacement annulé.", vbInformation, "Calendrier"
             Call UF_ChargerCalendrierPersonnel(frm)
         End If
@@ -2237,7 +2174,10 @@ Private Sub UF_DoubleclicCalendrier_Fixe(ByVal frm As Object, _
         choix = MsgBox(msgInfos & vbCrLf & "Voulez-vous supprimer cette absence ?", _
                        vbYesNo + vbQuestion, nomPerso & " - " & Format(dateJour, "dd.mm.yyyy"))
         If choix = vbYes Then
-            wsV.Rows(ligneAbsence).Delete
+            ' Suppression via ListObject (convention du projet).
+            Dim tblVacDel As ListObject
+            Set tblVacDel = wsV.ListObjects(NOM_TBL_VACANCES)
+            tblVacDel.ListRows(ligneAbsence - tblVacDel.HeaderRowRange.Row).Delete
             MsgBox "Absence supprimée.", vbInformation, "Calendrier"
             Call UF_ChargerCalendrierPersonnel(frm)
         End If
@@ -2353,6 +2293,12 @@ Private Sub GenererFicheExcel(ByVal LignePers As Long, _
                                ByVal avecAptitudes As Boolean, _
                                ByVal avecStats As Boolean, _
                                ByVal avecAbsences As Boolean)
+
+    ' Gestion d'erreur globale : si une erreur survient n'importe où pendant
+    ' la construction de la fiche, ScreenUpdating/DisplayAlerts doivent
+    ' impérativement être restaurés, sinon Excel reste visuellement figé
+    ' pour l'utilisateur sans aucun message d'erreur.
+    On Error GoTo ErrGeneration
 
     ' Desactive les alertes Excel
     Application.DisplayAlerts = False
@@ -2747,7 +2693,20 @@ Private Sub GenererFicheExcel(ByVal LignePers As Long, _
     Application.DisplayAlerts = True
 
     ' Retourne sur le Planning journalier
-    Sheets("Planning journalier").Activate
+    Sheets(NOM_FEUILLE_PLANNING).Activate
+
+    Exit Sub
+
+ErrGeneration:
+    ' Restaure systématiquement l'état d'Excel avant de signaler l'erreur,
+    ' pour ne jamais laisser le classeur figé (écran non rafraîchi,
+    ' alertes désactivées) suite à un échec de génération de la fiche.
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    On Error Resume Next
+    ThisWorkbook.Sheets("_Fiche_Temp").Delete
+    On Error GoTo 0
+    MsgBox "Erreur lors de la génération de la fiche :" & vbCrLf & Err.Description, vbCritical
 
 End Sub
 
@@ -2803,25 +2762,6 @@ End Function
 ' SUB : UF_InitCalendrierAux
 ' Initialise le calendrier auxiliaires (appele depuis UserForm_Initialize)
 '==============================================================================
-'Sub UF_InitCalendrierAux(ByVal frm As Object)
-
-'    frm.txtAuxCalMois.Value = CStr(Month(Date))
-'    frm.txtAuxCalAnnee.Value = CStr(Year(Date))
-
-    ' Charge la date de reference G1 depuis Planning journalier
-'    Dim dateRef As Date
-'    On Error Resume Next
-'    dateRef = Sheets("Planning journalier").Range("Ref_GroupeG1").Value
-'    On Error GoTo 0
-
-'    If dateRef > 0 Then
-'        frm.txtRefGroupeG1.Value = Format(dateRef, "dd.mm.yyyy")
-'    End If
-
-'    Call UF_DessinnerCalendrierAux(frm)
-
-'End Sub
-
 Sub UF_InitCalendrierAux(ByVal frm As Object)
 
     On Error Resume Next
@@ -3209,17 +3149,25 @@ Sub UF_SupprimerFermeturesAnnee(ByVal frm As Object, ByVal annee As Long)
     Dim ws As Worksheet
     Set ws = Sheets(NOM_FEUILLE_FERIES)
 
+    Dim tbl As ListObject
+    Set tbl = ws.ListObjects(NOM_TBL_FERIES)
+
     Dim dernLigne As Long
     dernLigne = ws.Cells(ws.Rows.count, 1).End(xlUp).Row
 
     Dim i As Long
     For i = dernLigne To 2 Step -1
         Dim d As Date
+        d = 0
         On Error Resume Next
         d = ws.Cells(i, 1).Value
         On Error GoTo 0
-        If Year(d) = annee And Trim(ws.Cells(i, 3).Value) = TYPE_FERIE_FERMETURE Then
-            ws.Rows(i).Delete
+        If d <> 0 Then
+            If Year(d) = annee And Trim(ws.Cells(i, 3).Value) = TYPE_FERIE_FERMETURE Then
+                ' Suppression via ListObject (convention du projet) au lieu
+                ' de ws.Rows(i).Delete, qui efface toute la largeur de la ligne.
+                tbl.ListRows(i - tbl.HeaderRowRange.Row).Delete
+            End If
         End If
     Next i
 

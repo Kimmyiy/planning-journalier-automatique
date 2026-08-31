@@ -16,24 +16,22 @@ Option Explicit
 '   - Ouverture du UserForm de gestion du personnel
 '==============================================================================
 
-' Lignes du tableau Planning_Matin (alignées avec Planning_Auto)
-Private Const LIGNE_DEBUT_MATIN As Long = 6
-Private Const LIGNE_FIN_MATIN   As Long = 20
-
-' Colonnes noms et postes dans la feuille Planning journalier
-Private Const ICOL_NOMS   As Long = 6  ' Colonne F
-Private Const ICOL_POSTES As Long = 7  ' Colonne G
-
-' Dossier d'archivage PDF
-Private Const NOM_DOSSIER_ARCHIVES As String = "Archives"
+' Lignes/colonnes du tableau Planning_Matin et dossier d'archivage :
+' LIGNE_DEBUT_MATIN, LIGNE_FIN_MATIN, PLAN_COL_NOMS, PLAN_COL_POSTES et
+' NOM_DOSSIER_ARCHIVES viennent de Module_Constantes (source unique,
+' partagée avec Planning_Auto).
 
 '==============================================================================
 ' SUB : DatePlusUn
 ' Ajoute 1 jour à la date du planning.
 '==============================================================================
 Sub DatePlusUn()
+    On Error GoTo ErrDate
     Call Mem
     wsP.Range(CELL_DATE_PLANNING).Value = wsP.Range(CELL_DATE_PLANNING).Value + 1
+    Exit Sub
+ErrDate:
+    MsgBox "Impossible de modifier la date du planning :" & vbCrLf & Err.Description, vbExclamation
 End Sub
 
 '==============================================================================
@@ -41,8 +39,12 @@ End Sub
 ' Retire 1 jour à la date du planning.
 '==============================================================================
 Sub DateMoinsUn()
+    On Error GoTo ErrDate
     Call Mem
     wsP.Range(CELL_DATE_PLANNING).Value = wsP.Range(CELL_DATE_PLANNING).Value - 1
+    Exit Sub
+ErrDate:
+    MsgBox "Impossible de modifier la date du planning :" & vbCrLf & Err.Description, vbExclamation
 End Sub
 
 '==============================================================================
@@ -50,8 +52,12 @@ End Sub
 ' Remplace la date du planning par la date du jour.
 '==============================================================================
 Sub DateAujourdhui()
+    On Error GoTo ErrDate
     Call Mem
     wsP.Range(CELL_DATE_PLANNING).Value = Date
+    Exit Sub
+ErrDate:
+    MsgBox "Impossible de modifier la date du planning :" & vbCrLf & Err.Description, vbExclamation
 End Sub
 
 '==============================================================================
@@ -85,11 +91,14 @@ Sub ImprimerPlanning()
 
     End If
 
+    ' --- Boîte de dialogue impression ---
+    ' Date_print n'est enregistrée qu'après confirmation de l'impression :
+    ' l'écrire avant laisserait un état incohérent (impression "datée" alors
+    ' qu'elle a été annulée) si l'utilisateur clique sur Annuler.
+    If Application.Dialogs(xlDialogPrint).Show = False Then Exit Sub
+
     ' --- Enregistre la date et l'heure de la dernière impression ---
     wsP.Range(CELL_DATE_PRINT).Value = Now
-
-    ' --- Boîte de dialogue impression ---
-    If Application.Dialogs(xlDialogPrint).Show = False Then Exit Sub
 
     ' --- Construction du chemin d'archivage PDF ---
     ' Organisation : Archives \ annee \ mois \ date_planning \ hh.nn.ss.pdf
@@ -129,8 +138,8 @@ Sub ImprimerPlanning()
 
             Dim nom   As String
             Dim poste As String
-            nom = Trim(wsP.Cells(ligne, ICOL_NOMS).Value)
-            poste = Trim(wsP.Cells(ligne, ICOL_POSTES).Value)
+            nom = Trim(wsP.Cells(ligne, PLAN_COL_NOMS).Value)
+            poste = Trim(wsP.Cells(ligne, PLAN_COL_POSTES).Value)
 
             If nom <> "" And poste <> "" Then
                 Call Planning_Auto.IncrementStats(nom, poste)

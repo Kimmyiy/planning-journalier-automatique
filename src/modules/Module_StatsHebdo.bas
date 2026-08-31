@@ -20,18 +20,9 @@ Option Explicit
 '   Colonnes : Code opérateur, Nom, Vaox5-A, Vaox5-B, Vaox5-C, Vaox5-D, Vaox1, Expédition
 '==============================================================================
 
-' Colonnes de la feuille Personnel
-Private Const S_COL_ID       As Long = 1   ' A — Code opérateur
-Private Const S_COL_NOM      As Long = 2   ' B — Nom
-Private Const S_COL_STATUT   As Long = 3   ' C — Statut
-Private Const S_COL_TYPE     As Long = 4   ' D — Type
-Private Const S_COL_GROUPE   As Long = 5   ' E — Groupe
-Private Const S_COL_STATS_A  As Long = 18  ' R — Vaox5-A
-Private Const S_COL_STATS_B  As Long = 19  ' S — Vaox5-B
-Private Const S_COL_STATS_C  As Long = 20  ' T — Vaox5-C
-Private Const S_COL_STATS_D  As Long = 21  ' U — Vaox5-D
-Private Const S_COL_STATS_V1 As Long = 22  ' V — Vaox1
-Private Const S_COL_STATS_EX As Long = 23  ' W — Expédition
+' Colonnes de la feuille Personnel : PERS_COL_xxx (Module_Constantes), pas de
+' redéfinition locale ici — une redéfinition (ex-S_COL_xxx) désynchronise
+' silencieusement ce module si la feuille Personnel est réorganisée un jour.
 
 ' Couleurs mise en forme
 Private Const ROUGE    As Long = 12611584  ' RGB(192, 0, 0)
@@ -50,16 +41,29 @@ Public Sub ImprimerStatsHebdo(ByVal datePlanning As Date)
     ' Vérifie que c'est bien un lundi
     If Weekday(datePlanning, vbMonday) <> 1 Then Exit Sub
 
-    ' Vérifie que le dossier Archives\Stats existe
-    Dim dossierStats As String
-    dossierStats = ThisWorkbook.Path & "\Archives\Stats\"
+    If ThisWorkbook.Path = "" Then
+        MsgBox "Le classeur doit être enregistré avant de pouvoir archiver " & _
+               "les statistiques hebdomadaires.", vbExclamation
+        Exit Sub
+    End If
 
-    If Dir(ThisWorkbook.Path & "\Archives\", vbDirectory) = "" Then
-        MkDir ThisWorkbook.Path & "\Archives\"
+    On Error GoTo ErrDossier
+
+    ' Vérifie que le dossier Archives\Stats existe
+    Dim dossierArchives As String
+    dossierArchives = ThisWorkbook.Path & "\" & NOM_DOSSIER_ARCHIVES & "\"
+
+    Dim dossierStats As String
+    dossierStats = dossierArchives & NOM_SOUS_DOSSIER_STATS & "\"
+
+    If Dir(dossierArchives, vbDirectory) = "" Then
+        MkDir dossierArchives
     End If
     If Dir(dossierStats, vbDirectory) = "" Then
         MkDir dossierStats
     End If
+
+    On Error GoTo 0
 
     ' Nom du fichier
     Dim nomFichier As String
@@ -71,6 +75,12 @@ Public Sub ImprimerStatsHebdo(ByVal datePlanning As Date)
     ' Génère la feuille temporaire et exporte en PDF
     Call GenererFeuilleStats(cheminFinal, datePlanning)
 
+    Exit Sub
+
+ErrDossier:
+    MsgBox "Impossible de créer le dossier d'archivage des statistiques :" & _
+           vbCrLf & Err.Description, vbExclamation
+
 End Sub
 
 '==============================================================================
@@ -79,6 +89,12 @@ End Sub
 '==============================================================================
 Private Sub GenererFeuilleStats(ByVal cheminFinal As String, _
                                   ByVal datePlanning As Date)
+
+    ' Gestion d'erreur globale : sans elle, un échec (permissions sur
+    ' Archives\Stats, PDF déjà ouvert, disque plein) laisse la feuille
+    ' temporaire _Stats_Temp visible dans le classeur et l'écran figé
+    ' (ScreenUpdating/DisplayAlerts jamais restaurés).
+    On Error GoTo ErrGeneration
 
     Application.DisplayAlerts = False
     Application.ScreenUpdating = False
@@ -180,7 +196,7 @@ Private Sub GenererFeuilleStats(ByVal cheminFinal As String, _
     Set wsPer = Sheets(NOM_FEUILLE_PERSONNEL)
 
     Dim dernLigne As Long
-    dernLigne = wsPer.Cells(wsPer.Rows.count, S_COL_NOM).End(xlUp).Row
+    dernLigne = wsPer.Cells(wsPer.Rows.count, PERS_COL_NOM).End(xlUp).Row
 
     ' Collecte : 3 groupes — Fixe, G1, G2
     Dim nomsFixe()  As String: Dim lignesFixe()   As Long
@@ -196,24 +212,24 @@ Private Sub GenererFeuilleStats(ByVal cheminFinal As String, _
 
     Dim i As Long
     For i = 2 To dernLigne
-        If Trim(wsPer.Cells(i, S_COL_STATUT).Value) <> "Actif" Then GoTo SuivantPers
+        If Trim(wsPer.Cells(i, PERS_COL_STATUT).Value) <> "Actif" Then GoTo SuivantPers
 
         Dim typePers   As String
         Dim groupePers As String
-        typePers = Trim(wsPer.Cells(i, S_COL_TYPE).Value)
-        groupePers = Trim(wsPer.Cells(i, S_COL_GROUPE).Value)
+        typePers = Trim(wsPer.Cells(i, PERS_COL_TYPE).Value)
+        groupePers = Trim(wsPer.Cells(i, PERS_COL_GROUPE).Value)
 
         If typePers = "Fixe" Then
             nbFixe = nbFixe + 1
-            nomsFixe(nbFixe) = wsPer.Cells(i, S_COL_NOM).Value
+            nomsFixe(nbFixe) = wsPer.Cells(i, PERS_COL_NOM).Value
             lignesFixe(nbFixe) = i
         ElseIf typePers = "Auxiliaire" And groupePers = GROUPE_G1 Then
             nbG1 = nbG1 + 1
-            nomsG1(nbG1) = wsPer.Cells(i, S_COL_NOM).Value
+            nomsG1(nbG1) = wsPer.Cells(i, PERS_COL_NOM).Value
             lignesG1(nbG1) = i
         ElseIf typePers = "Auxiliaire" And groupePers = GROUPE_G2 Then
             nbG2 = nbG2 + 1
-            nomsG2(nbG2) = wsPer.Cells(i, S_COL_NOM).Value
+            nomsG2(nbG2) = wsPer.Cells(i, PERS_COL_NOM).Value
             lignesG2(nbG2) = i
         End If
 
@@ -268,6 +284,17 @@ SuivantPers:
     ' Retourne sur le planning
     Sheets(NOM_FEUILLE_PLANNING).Activate
 
+    Exit Sub
+
+ErrGeneration:
+    Application.ScreenUpdating = True
+    Application.DisplayAlerts = True
+    On Error Resume Next
+    ThisWorkbook.Sheets("_Stats_Temp").Delete
+    On Error GoTo 0
+    MsgBox "Erreur lors de l'export des statistiques hebdomadaires :" & _
+           vbCrLf & Err.Description, vbExclamation
+
 End Sub
 
 '==============================================================================
@@ -304,14 +331,14 @@ Private Function EcrireLigneStat(ByVal wsStat As Worksheet, _
                                    ByVal couleur As Long) As Long
 
     Dim valeurs(1 To 8) As Variant
-    valeurs(1) = wsPer.Cells(lignePer, S_COL_ID).Value
-    valeurs(2) = wsPer.Cells(lignePer, S_COL_NOM).Value
-    valeurs(3) = wsPer.Cells(lignePer, S_COL_STATS_A).Value
-    valeurs(4) = wsPer.Cells(lignePer, S_COL_STATS_B).Value
-    valeurs(5) = wsPer.Cells(lignePer, S_COL_STATS_C).Value
-    valeurs(6) = wsPer.Cells(lignePer, S_COL_STATS_D).Value
-    valeurs(7) = wsPer.Cells(lignePer, S_COL_STATS_V1).Value
-    valeurs(8) = wsPer.Cells(lignePer, S_COL_STATS_EX).Value
+    valeurs(1) = wsPer.Cells(lignePer, PERS_COL_ID).Value
+    valeurs(2) = wsPer.Cells(lignePer, PERS_COL_NOM).Value
+    valeurs(3) = wsPer.Cells(lignePer, PERS_COL_STATS_A).Value
+    valeurs(4) = wsPer.Cells(lignePer, PERS_COL_STATS_B).Value
+    valeurs(5) = wsPer.Cells(lignePer, PERS_COL_STATS_C).Value
+    valeurs(6) = wsPer.Cells(lignePer, PERS_COL_STATS_D).Value
+    valeurs(7) = wsPer.Cells(lignePer, PERS_COL_STATS_V1).Value
+    valeurs(8) = wsPer.Cells(lignePer, PERS_COL_STATS_EXP).Value
 
     Dim col As Integer
     For col = 1 To 8

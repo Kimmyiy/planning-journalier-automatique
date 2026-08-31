@@ -93,7 +93,7 @@ Private Sub btnAbsConfirmer_Click()
     dFin = CDate(txtAbsFin.Value)
 
     If dFin < dDebut Then
-        MsgBox "La date de fin ne peut pas tre anterieure à la date de début.", _
+        MsgBox "La date de fin ne peut pas être antérieure à la date de début.", _
                vbExclamation
         txtAbsFin.SetFocus
         Exit Sub

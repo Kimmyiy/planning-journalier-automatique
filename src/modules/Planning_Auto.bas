@@ -28,49 +28,13 @@ Option Explicit
 
 '------------------------------------------------------------------------------
 ' CONSTANTES — Colonnes de la feuille Planning journalier
+' (colonnes/lignes de mise en page, colonnes Personnel/Parametres :
+'  centralisées dans Module_Constantes pour éviter toute désynchronisation
+'  avec Commande_Bouton, Module_UserForm et Module_StatsHebdo)
 '------------------------------------------------------------------------------
-Private Const COL_NOMS   As String = "F"  ' Colonne des noms affectés
-Private Const COL_POSTES As String = "G"  ' Colonne des postes
-
-' Lignes du tableau Planning_Matin et Planning_ApresMidi
-Private Const LIGNE_DEBUT_MATIN As Long = 6
-Private Const LIGNE_FIN_MATIN   As Long = 20
-Private Const LIGNE_DEBUT_AM    As Long = 24
-Private Const LIGNE_FIN_AM      As Long = 27
-Private Const NB_LIGNES_MATIN   As Long = 15
-Private Const NB_LIGNES_AM      As Long = 3
 
 ' Vaox1 A&B : toujours 1 personne fixe
 Private Const NB_VAOX1 As Long = 1
-
-'------------------------------------------------------------------------------
-' CONSTANTES — Colonnes du tableau Tbl_Parametres
-'------------------------------------------------------------------------------
-Private Const PARAM_MACHINE   As Long = 1  ' A — Nom de la machine
-Private Const PARAM_SEUIL1    As Long = 2  ' B — Seuil 2 personnes
-Private Const PARAM_SEUIL2    As Long = 3  ' C — Seuil 3 personnes
-Private Const PARAM_MAX       As Long = 4  ' D — Quantité max
-Private Const PARAM_FERMETURE As Long = 5  ' E — Fermeture (VRAI/FAUX)
-
-'------------------------------------------------------------------------------
-' CONSTANTES — Colonnes de la feuille Personnel
-'------------------------------------------------------------------------------
-Private Const PERS_COL_NOM       As Long = 2   ' B — Nom
-Private Const PERS_COL_STATUT    As Long = 3   ' C — Statut (Actif / Archive)
-Private Const PERS_COL_TYPE      As Long = 4   ' D — Type (Fixe / Auxiliaire)
-Private Const PERS_COL_GROUPE    As Long = 5   ' E — Groupe WE (G1 / G2)
-Private Const PERS_COL_LUN       As Long = 6   ' F — Horaire lundi
-Private Const PERS_COL_P1        As Long = 13  ' M — Aptitude Poste 1
-Private Const PERS_COL_P2        As Long = 14  ' N — Aptitude Poste 2
-Private Const PERS_COL_P3        As Long = 15  ' O — Aptitude Poste 3
-Private Const PERS_COL_D         As Long = 16  ' P — Aptitude Vaox5-D
-Private Const PERS_COL_VAOX1     As Long = 17  ' Q — Aptitude Vaox1 A&B
-Private Const PERS_COL_STATS_A   As Long = 18  ' R — Passages Vaox5-A
-Private Const PERS_COL_STATS_B   As Long = 19  ' S — Passages Vaox5-B
-Private Const PERS_COL_STATS_C   As Long = 20  ' T — Passages Vaox5-C
-Private Const PERS_COL_STATS_D   As Long = 21  ' U — Passages Vaox5-D
-Private Const PERS_COL_STATS_V1  As Long = 22  ' V — Passages Vaox1
-Private Const PERS_COL_STATS_EXP As Long = 23  ' W — Passages Expédition
 
 '------------------------------------------------------------------------------
 ' RÉFÉRENCES GLOBALES AUX FEUILLES
@@ -120,10 +84,17 @@ End Sub
 Public Sub GenererPlanning()
 
     On Error GoTo ErrFeuille
+
+    ' Un seul amorçage du générateur aléatoire pour toute la génération
+    ' (voir ChoisirPersonne : ne pas appeler Randomize à chaque poste).
+    Randomize
+
     Call Mem
-    On Error GoTo 0
 
     ' --- Lecture de la date du planning ---
+    ' Gestion d'erreur étendue jusqu'à la fin de la procédure : couvre aussi
+    ' l'accès aux feuilles et aux plages nommées (Date_planning, EnEpreuve_*),
+    ' au cas où l'une d'elles serait renommée ou supprimée.
     Dim planningDate As Date
     planningDate = wsP.Range(CELL_DATE_PLANNING).Value
 
@@ -142,7 +113,7 @@ Public Sub GenererPlanning()
     If estFerieEnSemaine Then
         MsgBox "Attention : le " & Format(planningDate, "dd.mm.yyyy") & _
                " est un jour férié (" & Module_Feries.GetNomFerie(planningDate) & ")." & vbCrLf & _
-               "Le planning sera génére avec les auxiliaires.", _
+               "Le planning sera généré avec les auxiliaires.", _
                vbInformation, "Jour férié"
     End If
 
@@ -223,7 +194,8 @@ Public Sub GenererPlanning()
     Next i
 
     ' Écriture dans la feuille (ordre d'affichage fixe)
-    Call EcrireAffectationsMatin(postesMatin, affectationsMatin, nbPostesMatin)
+    Dim nbOmisMatin As Long
+    nbOmisMatin = EcrireAffectationsMatin(postesMatin, affectationsMatin, nbPostesMatin)
 
     '==========================================================================
     ' PLANNING APRÈS-MIDI
@@ -233,21 +205,38 @@ Public Sub GenererPlanning()
     Dim ligneAM As Long
     ligneAM = LIGNE_DEBUT_AM
 
+    Dim nbOmisAM As Long
+    nbOmisAM = 0
+
     For i = 1 To nbPersonnes
-        If ligneAM > LIGNE_FIN_AM Then Exit For
         If personnes(i).codePresence = "J" Then
-            wsP.Cells(ligneAM, 6).Value = personnes(i).nom
-            ligneAM = ligneAM + 1
+            If ligneAM > LIGNE_FIN_AM Then
+                nbOmisAM = nbOmisAM + 1
+            Else
+                wsP.Cells(ligneAM, PLAN_COL_NOMS).Value = personnes(i).nom
+                ligneAM = ligneAM + 1
+            End If
         End If
     Next i
 
-    MsgBox "Planning généré avec succès !", vbInformation, "Planning v2.0"
+    If nbOmisMatin > 0 Or nbOmisAM > 0 Then
+        MsgBox "Planning généré, mais la capacité d'affichage est dépassée :" & vbCrLf & _
+               IIf(nbOmisMatin > 0, nbOmisMatin & " personne(s) non affichée(s) le matin." & vbCrLf, "") & _
+               IIf(nbOmisAM > 0, nbOmisAM & " personne(s) non affichée(s) l'après-midi." & vbCrLf, "") & _
+               "Vérifiez le nombre de personnes présentes ce jour.", _
+               vbExclamation, "Planning v2.0 — capacité dépassée"
+    Else
+        MsgBox "Planning généré avec succès !", vbInformation, "Planning v2.0"
+    End If
 
     Exit Sub
 
 ErrFeuille:
-    MsgBox "Erreur : impossible d'accéder aux feuilles." & vbCrLf & _
-           "Vérifiez que les feuilles existent et sont correctement nommées.", _
+    MsgBox "Erreur lors de la génération du planning :" & vbCrLf & _
+           Err.Description & vbCrLf & vbCrLf & _
+           "Vérifiez que les feuilles et les plages nommées " & _
+           "(Date_planning, EnEpreuve_VaoX5A/B/C/D...) existent " & _
+           "et sont correctement nommées.", _
            vbCritical
 
 End Sub
@@ -365,19 +354,25 @@ End Function
 Private Function EstAbsent(ByVal nom As String, ByVal dateJour As Date) As Boolean
 
     Dim dernLigne As Long
-    dernLigne = wsV.Cells(wsV.Rows.count, 2).End(xlUp).Row
+    dernLigne = wsV.Cells(wsV.Rows.count, VAC_COL_NOM).End(xlUp).Row
 
     Dim i As Long
     For i = 2 To dernLigne
-        If Trim(wsV.Cells(i, 2).Value) = nom Then
+        If Trim(wsV.Cells(i, VAC_COL_NOM).Value) = nom Then
+            ' dDebut/dFin réinitialisées à 0 avant chaque lecture : si la
+            ' cellule est vide/invalide, on ignore la ligne au lieu de
+            ' réutiliser silencieusement la date de l'itération précédente.
             Dim dDebut As Date, dFin As Date
+            dDebut = 0: dFin = 0
             On Error Resume Next
-            dDebut = wsV.Cells(i, 3).Value
-            dFin = wsV.Cells(i, 4).Value
+            dDebut = wsV.Cells(i, VAC_COL_DEBUT).Value
+            dFin = wsV.Cells(i, VAC_COL_FIN).Value
             On Error GoTo 0
-            If dateJour >= dDebut And dateJour <= dFin Then
-                EstAbsent = True
-                Exit Function
+            If dDebut <> 0 And dFin <> 0 Then
+                If dateJour >= dDebut And dateJour <= dFin Then
+                    EstAbsent = True
+                    Exit Function
+                End If
             End If
         End If
     Next i
@@ -420,11 +415,11 @@ Private Function ConstruireListePostes(ByRef postes() As String, _
     Dim s1D As Long, s2D As Long, maxD As Long, fermD As Boolean
     Dim fermV1 As Boolean, maxV1 As Long
 
-    If Not LireParametresMachine("Vaox5-A", s1A, s2A, maxA, fermA) Then Exit Function
-    If Not LireParametresMachine("Vaox5-B", s1B, s2B, maxB, fermB) Then Exit Function
-    If Not LireParametresMachine("Vaox5-C", s1C, s2C, maxC, fermC) Then Exit Function
-    If Not LireParametresMachine("Vaox5-D", s1D, s2D, maxD, fermD) Then Exit Function
-    If Not LireParametresMachine("Vaox1-A&B", 0, 0, maxV1, fermV1) Then Exit Function
+    If Not LireParametresMachine(MACHINE_VAOX5A, s1A, s2A, maxA, fermA) Then Exit Function
+    If Not LireParametresMachine(MACHINE_VAOX5B, s1B, s2B, maxB, fermB) Then Exit Function
+    If Not LireParametresMachine(MACHINE_VAOX5C, s1C, s2C, maxC, fermC) Then Exit Function
+    If Not LireParametresMachine(MACHINE_VAOX5D, s1D, s2D, maxD, fermD) Then Exit Function
+    If Not LireParametresMachine(PARAM_VAOX1, 0, 0, maxV1, fermV1) Then Exit Function
 
     ' --- Calcul du nombre de personnes par machine ---
     Dim nbVaox1 As Long: nbVaox1 = IIf(fermV1, 0, NB_VAOX1)
@@ -437,7 +432,11 @@ Private Function ConstruireListePostes(ByRef postes() As String, _
     Dim maxPostes As Long
     maxPostes = nbVaox1 + nbA + nbB + nbC + nbD
     If maxPostes = 0 Then
-        ReDim postes(0)
+        ' Base 1-based, cohérente avec le ReDim Preserve fait ensuite dans
+        ' GenererPlanning : ReDim postes(0) créerait un tableau 0-based et
+        ' ReDim Preserve postes(1 To ...) plante alors (erreur 9, la borne
+        ' inférieure d'un tableau ne peut pas être changée avec Preserve).
+        ReDim postes(1 To 1)
         ConstruireListePostes = 0
         Exit Function
     End If
@@ -449,7 +448,7 @@ Private Function ConstruireListePostes(ByRef postes() As String, _
     ' Vaox1 A&B : priorité absolue, toujours en premier
     Dim k As Long
     For k = 1 To nbVaox1
-        postes(idx) = "Vaox1 A&B"
+        postes(idx) = MACHINE_VAOX1
         idx = idx + 1
     Next k
 
@@ -641,10 +640,14 @@ SuiteCandidats:
     Next c
 
     ' Tirage aléatoire parmi les ex-aequo
+    ' Note : Randomize n'est PAS appelé ici mais une seule fois en tête de
+    ' GenererPlanning. L'appeler à chaque poste en ex-aequo réamorce le
+    ' générateur depuis l'horloge système en quelques millisecondes,
+    ' ce qui peut produire des tirages corrélés au lieu de tirages
+    ' réellement indépendants.
     If nbExAequo = 1 Then
         ChoisirPersonne = exAequo(1)
     Else
-        Randomize
         ChoisirPersonne = exAequo(Int(Rnd() * nbExAequo) + 1)
     End If
 
@@ -706,14 +709,19 @@ Private Sub EffacerAffectations()
 End Sub
 
 '==============================================================================
-' SUB : EcrireAffectationsMatin
+' FUNCTION : EcrireAffectationsMatin
 ' Écrit les affectations dans la feuille Planning journalier.
 ' Ordre d'affichage toujours fixe : Vaox1 > A > B > C > D > Expédition,
 ' indépendamment de l'ordre d'affectation (tri dynamique v1.2.3).
+'
+' Retourne le nombre d'affectations qui n'ont pas pu être écrites faute de
+' place (le tableau Planning_Matin ne compte que NB_LIGNES_MATIN lignes) :
+' l'appelant doit avertir l'utilisateur si ce nombre est supérieur à 0,
+' pour ne jamais perdre silencieusement une personne présente du planning.
 '==============================================================================
-Private Sub EcrireAffectationsMatin(ByRef postes() As String, _
-                                     ByRef affectations() As String, _
-                                     ByVal nbPostes As Long)
+Private Function EcrireAffectationsMatin(ByRef postes() As String, _
+                                          ByRef affectations() As String, _
+                                          ByVal nbPostes As Long) As Long
 
     Dim ordreAffichage(1 To 6) As String
     ordreAffichage(1) = "VAOX1"
@@ -726,13 +734,14 @@ Private Sub EcrireAffectationsMatin(ByRef postes() As String, _
     Dim ligneCourante As Long
     ligneCourante = LIGNE_DEBUT_MATIN
 
+    Dim nbOmis As Long
+    nbOmis = 0
+
     Dim g As Long
     For g = 1 To 6
 
         Dim i As Long
         For i = 1 To nbPostes
-
-            If ligneCourante > LIGNE_DEBUT_MATIN + NB_LIGNES_MATIN - 1 Then Exit For
 
             Dim posteUpper As String
             posteUpper = UCase(Trim(postes(i)))
@@ -750,16 +759,22 @@ Private Sub EcrireAffectationsMatin(ByRef postes() As String, _
             End Select
 
             If correspond Then
-                wsP.Cells(ligneCourante, COL_NOMS).Value = affectations(i)
-                wsP.Cells(ligneCourante, COL_POSTES).Value = postes(i)
-                ligneCourante = ligneCourante + 1
+                If ligneCourante > LIGNE_DEBUT_MATIN + NB_LIGNES_MATIN - 1 Then
+                    nbOmis = nbOmis + 1
+                Else
+                    wsP.Cells(ligneCourante, PLAN_COL_NOMS).Value = affectations(i)
+                    wsP.Cells(ligneCourante, PLAN_COL_POSTES).Value = postes(i)
+                    ligneCourante = ligneCourante + 1
+                End If
             End If
 
         Next i
 
     Next g
 
-End Sub
+    EcrireAffectationsMatin = nbOmis
+
+End Function
 
 '==============================================================================
 ' SUB : VerifierEffectifSemaine
@@ -895,11 +910,12 @@ Private Function CompterRenforts(ByVal dateJour As Date) As Long
     Dim i As Long
     For i = 1 To tbl.ListRows.count
         Dim dRpl As Date
+        dRpl = 0
         On Error Resume Next
-        dRpl = tbl.DataBodyRange(i, 1).Value
+        dRpl = tbl.DataBodyRange(i, RPL_COL_DATE).Value
         On Error GoTo 0
-        If Int(dRpl) = Int(dateJour) Then
-            If Trim(tbl.DataBodyRange(i, 6).Value) = "Renfort" Then
+        If dRpl <> 0 And Int(dRpl) = Int(dateJour) Then
+            If Trim(tbl.DataBodyRange(i, RPL_COL_TYPE).Value) = "Renfort" Then
                 count = count + 1
             End If
         End If
@@ -928,22 +944,23 @@ Private Function EstDisponibleAuxiliaire(ByVal nom As String, _
         Dim i As Long
         For i = 1 To tbl.ListRows.count
             Dim dRpl As Date
+            dRpl = 0
             On Error Resume Next
-            dRpl = tbl.DataBodyRange(i, 1).Value
+            dRpl = tbl.DataBodyRange(i, RPL_COL_DATE).Value
             On Error GoTo 0
 
-            If Int(dRpl) = Int(dateJour) Then
+            If dRpl <> 0 And Int(dRpl) = Int(dateJour) Then
                 Dim typeRpl As String
-                typeRpl = Trim(tbl.DataBodyRange(i, 6).Value)
+                typeRpl = Trim(tbl.DataBodyRange(i, RPL_COL_TYPE).Value)
 
                 ' Se fait remplacer -> absent
-                If Trim(tbl.DataBodyRange(i, 3).Value) = nom Then
+                If Trim(tbl.DataBodyRange(i, RPL_COL_NOM_ABSENTE).Value) = nom Then
                     EstDisponibleAuxiliaire = False
                     Exit Function
                 End If
 
-                ' Est remplaÃ§ant ou renfort -> présent
-                If Trim(tbl.DataBodyRange(i, 5).Value) = nom Then
+                ' Est remplaçant ou renfort -> présent
+                If Trim(tbl.DataBodyRange(i, RPL_COL_NOM_REMPLACANT).Value) = nom Then
                     EstDisponibleAuxiliaire = True
                     Exit Function
                 End If

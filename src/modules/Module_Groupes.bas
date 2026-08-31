@@ -56,10 +56,11 @@ Function GetGroupeJour(ByVal dateJour As Date) As String
     Dim i As Long
     For i = 1 To tbl.ListRows.count
         Dim d As Date
+        d = 0
         On Error Resume Next
         d = tbl.DataBodyRange(i, GRP_COL_DATE).Value
         On Error GoTo 0
-        If Int(d) = Int(dateJour) Then
+        If d <> 0 And Int(d) = Int(dateJour) Then
             GetGroupeJour = tbl.DataBodyRange(i, GRP_COL_GROUPE).Value
             Exit Function
         End If
@@ -90,10 +91,11 @@ Sub SetGroupeJour(ByVal dateJour As Date, ByVal groupe As String)
     Dim i As Long
     For i = 1 To tbl.ListRows.count
         Dim d As Date
+        d = 0
         On Error Resume Next
         d = tbl.DataBodyRange(i, GRP_COL_DATE).Value
         On Error GoTo 0
-        If Int(d) = Int(dateJour) Then
+        If d <> 0 And Int(d) = Int(dateJour) Then
             ligneExiste = i
             Exit For
         End If
@@ -198,24 +200,30 @@ Sub GenererGroupesAnnee(ByVal annee As Long)
     Dim i As Long
     For i = 1 To tbl.ListRows.count
         Dim d As Date
+        d = 0
         On Error Resume Next
         d = tbl.DataBodyRange(i, GRP_COL_DATE).Value
         On Error GoTo 0
-        If Year(d) = annee And tbl.DataBodyRange(i, GRP_COL_MANUEL).Value = "Oui" Then
-            nbManuels = nbManuels + 1
-            datesManuelles(nbManuels) = d
-            groupesManuels(nbManuels) = tbl.DataBodyRange(i, GRP_COL_GROUPE).Value
+        If d <> 0 Then
+            If Year(d) = annee And tbl.DataBodyRange(i, GRP_COL_MANUEL).Value = "Oui" Then
+                nbManuels = nbManuels + 1
+                datesManuelles(nbManuels) = d
+                groupesManuels(nbManuels) = tbl.DataBodyRange(i, GRP_COL_GROUPE).Value
+            End If
         End If
     Next i
 
     ' Supprime les entrées automatiques de cette année
     i = tbl.ListRows.count
     Do While i >= 1
+        d = 0
         On Error Resume Next
         d = tbl.DataBodyRange(i, GRP_COL_DATE).Value
         On Error GoTo 0
-        If Year(d) = annee And tbl.DataBodyRange(i, GRP_COL_MANUEL).Value <> "Oui" Then
-            tbl.ListRows(i).Delete
+        If d <> 0 Then
+            If Year(d) = annee And tbl.DataBodyRange(i, GRP_COL_MANUEL).Value <> "Oui" Then
+                tbl.ListRows(i).Delete
+            End If
         End If
         i = i - 1
     Loop
@@ -244,12 +252,16 @@ Sub GenererGroupesAnnee(ByVal annee As Long)
         Dim jourSem As Long
         jourSem = Weekday(dateCase, vbMonday)
 
-        Dim estWE    As Boolean
-        Dim estFerie As Boolean
+        Dim estWE        As Boolean
+        Dim estJourFerie As Boolean
         estWE = (jourSem = 6 Or jourSem = 7)
-        estFerie = Module_Feries.estFerie(dateCase)
+        ' Une fermeture d'entreprise n'est pas un jour férié nécessitant un
+        ' roulement auxiliaire : personne ne travaille ce jour-là. Sans cette
+        ' exclusion, une semaine de fermeture se voyait attribuer un groupe
+        ' G1/G2 comme un vrai jour férié.
+        estJourFerie = Module_Feries.estFerie(dateCase) And Not Module_Feries.EstFermeture(dateCase)
 
-        If Not (estWE Or estFerie) Then GoTo SuivantJour
+        If Not (estWE Or estJourFerie) Then GoTo SuivantJour
 
         ' Vérifie modification manuelle
         Dim groupeJour As String
@@ -273,7 +285,7 @@ Sub GenererGroupesAnnee(ByVal annee As Long)
             ElseIf jourSem = 7 Then
                 groupeJour = TrouverGroupeDate(dateCase - 1, tmpDates, tmpGroupes, nbJours)
                 If groupeJour = "" Then groupeJour = groupeSamediCourant
-            ElseIf jourSem = 1 And estFerie Then
+            ElseIf jourSem = 1 And estJourFerie Then
                 Dim groupeDim As String
                 groupeDim = TrouverGroupeDate(dateCase - 1, tmpDates, tmpGroupes, nbJours)
                 If groupeDim <> "" Then
@@ -282,17 +294,9 @@ Sub GenererGroupesAnnee(ByVal annee As Long)
                     groupeJour = groupeCourant
                 End If
             Else
-                If estWE And estFerie Then
-                    If jourSem = 6 Then
-                        groupeJour = groupeCourant
-                        groupeSamediCourant = groupeCourant
-                    Else
-                        groupeJour = TrouverGroupeDate(dateCase - 1, tmpDates, tmpGroupes, nbJours)
-                        If groupeJour = "" Then groupeJour = groupeSamediCourant
-                    End If
-                Else
-                    groupeJour = groupeCourant
-                End If
+                ' Ce cas (mardi-vendredi) ne peut jamais avoir estWE=True :
+                ' estWE n'est vrai que pour jourSem 6/7, déjà traités ci-dessus.
+                groupeJour = groupeCourant
             End If
         End If
 
@@ -302,9 +306,9 @@ Sub GenererGroupesAnnee(ByVal annee As Long)
         tmpGroupes(nbJours) = groupeJour
         tmpManuels(nbJours) = IIf(estManuel, "Oui", "Non")
 
-        If estWE And Not estFerie Then
+        If estWE And Not estJourFerie Then
             tmpTypes(nbJours) = "Weekend"
-        ElseIf estFerie And Not estWE Then
+        ElseIf estJourFerie And Not estWE Then
             tmpTypes(nbJours) = "Ferie"
         Else
             tmpTypes(nbJours) = "Weekend"
@@ -366,10 +370,11 @@ Private Function DeterminerGroupePremierWE(ByVal annee As Long, _
     Dim i As Long
     For i = tbl.ListRows.count To 1 Step -1
         Dim d As Date
+        d = 0
         On Error Resume Next
         d = tbl.DataBodyRange(i, GRP_COL_DATE).Value
         On Error GoTo 0
-        If Year(d) = annee - 1 Then
+        If d <> 0 And Year(d) = annee - 1 Then
             Dim jourSem As Long
             jourSem = Weekday(d, vbMonday)
             If jourSem = 6 Or jourSem = 7 Or Module_Feries.estFerie(d) Then

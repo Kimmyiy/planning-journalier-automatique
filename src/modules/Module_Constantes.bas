@@ -75,6 +75,95 @@ Public Const GROUPE_G1                  As String = "G1"
 Public Const GROUPE_G2                  As String = "G2"
 
 '------------------------------------------------------------------------------
+' NOMS DES MACHINES
+' MACHINE_xxx : libellé tel qu'affiché dans le planning journalier
+' PARAM_VAOX1 : clé de recherche dans Tbl_Parametres (colonne A) pour Vaox1
+' Les deux graphies historiques de Vaox1 A&B ("Vaox1-A&B" affichage machine
+' vs "Vaox1 A&B" planning) sont centralisées ici pour éviter toute divergence.
+'------------------------------------------------------------------------------
+Public Const MACHINE_VAOX1              As String = "Vaox1 A&B"
+Public Const PARAM_VAOX1                As String = "Vaox1-A&B"
+Public Const MACHINE_VAOX5A             As String = "Vaox5-A"
+Public Const MACHINE_VAOX5B             As String = "Vaox5-B"
+Public Const MACHINE_VAOX5C             As String = "Vaox5-C"
+Public Const MACHINE_VAOX5D             As String = "Vaox5-D"
+
+'------------------------------------------------------------------------------
+' DOSSIERS D'ARCHIVAGE (PDF planning, sauvegardes, stats hebdo)
+'------------------------------------------------------------------------------
+Public Const NOM_DOSSIER_ARCHIVES       As String = "Archives"
+Public Const NOM_SOUS_DOSSIER_STATS     As String = "Stats"
+
+'------------------------------------------------------------------------------
+' COLONNES DE LA FEUILLE Personnel (tableau Tbl_Personnel)
+' Utilisées par Planning_Auto, Module_UserForm et Module_StatsHebdo :
+' source UNIQUE pour éviter toute désynchronisation entre modules.
+'------------------------------------------------------------------------------
+Public Const PERS_COL_ID         As Long = 1   ' A — Identifiant
+Public Const PERS_COL_NOM        As Long = 2   ' B — Nom
+Public Const PERS_COL_STATUT     As Long = 3   ' C — Statut (Actif / Archive)
+Public Const PERS_COL_TYPE       As Long = 4   ' D — Type (Fixe / Auxiliaire)
+Public Const PERS_COL_GROUPE     As Long = 5   ' E — Groupe WE (G1 / G2)
+Public Const PERS_COL_LUN        As Long = 6   ' F — Horaire lundi
+Public Const PERS_COL_MAR        As Long = 7   ' G — Horaire mardi
+Public Const PERS_COL_MER        As Long = 8   ' H — Horaire mercredi
+Public Const PERS_COL_JEU        As Long = 9   ' I — Horaire jeudi
+Public Const PERS_COL_VEN        As Long = 10  ' J — Horaire vendredi
+Public Const PERS_COL_SAM        As Long = 11  ' K — Horaire samedi
+Public Const PERS_COL_DIM        As Long = 12  ' L — Horaire dimanche
+Public Const PERS_COL_P1         As Long = 13  ' M — Aptitude Poste 1
+Public Const PERS_COL_P2         As Long = 14  ' N — Aptitude Poste 2
+Public Const PERS_COL_P3         As Long = 15  ' O — Aptitude Poste 3
+Public Const PERS_COL_D          As Long = 16  ' P — Aptitude Vaox5-D
+Public Const PERS_COL_VAOX1      As Long = 17  ' Q — Aptitude Vaox1 A&B
+Public Const PERS_COL_STATS_A    As Long = 18  ' R — Passages Vaox5-A
+Public Const PERS_COL_STATS_B    As Long = 19  ' S — Passages Vaox5-B
+Public Const PERS_COL_STATS_C    As Long = 20  ' T — Passages Vaox5-C
+Public Const PERS_COL_STATS_D    As Long = 21  ' U — Passages Vaox5-D
+Public Const PERS_COL_STATS_V1   As Long = 22  ' V — Passages Vaox1
+Public Const PERS_COL_STATS_EXP  As Long = 23  ' W — Passages Expédition
+
+'------------------------------------------------------------------------------
+' COLONNES DU TABLEAU Tbl_Vacances (feuille Vacances)
+'------------------------------------------------------------------------------
+Public Const VAC_COL_ID          As Long = 1
+Public Const VAC_COL_NOM         As Long = 2
+Public Const VAC_COL_DEBUT       As Long = 3
+Public Const VAC_COL_FIN         As Long = 4
+Public Const VAC_COL_TYPE        As Long = 5
+
+'------------------------------------------------------------------------------
+' COLONNES DU TABLEAU Tbl_Remplacements (feuille Remplacements)
+'------------------------------------------------------------------------------
+Public Const RPL_COL_DATE           As Long = 1
+Public Const RPL_COL_ID_ABSENTE     As Long = 2
+Public Const RPL_COL_NOM_ABSENTE    As Long = 3
+Public Const RPL_COL_ID_REMPLACANT  As Long = 4
+Public Const RPL_COL_NOM_REMPLACANT As Long = 5
+Public Const RPL_COL_TYPE           As Long = 6
+
+'------------------------------------------------------------------------------
+' COLONNES DU TABLEAU Tbl_Parametres (feuille Parametres)
+'------------------------------------------------------------------------------
+Public Const PARAM_MACHINE       As Long = 1  ' A — Nom de la machine
+Public Const PARAM_SEUIL1        As Long = 2  ' B — Seuil 2 personnes
+Public Const PARAM_SEUIL2        As Long = 3  ' C — Seuil 3 personnes
+Public Const PARAM_MAX           As Long = 4  ' D — Quantité max
+Public Const PARAM_FERMETURE     As Long = 5  ' E — Fermeture (VRAI/FAUX)
+
+'------------------------------------------------------------------------------
+' MISE EN PAGE — Feuille Planning journalier (tableaux Planning_Matin/AM)
+'------------------------------------------------------------------------------
+Public Const PLAN_COL_NOMS       As Long = 6   ' F — Colonne des noms affectés
+Public Const PLAN_COL_POSTES     As Long = 7   ' G — Colonne des postes
+Public Const LIGNE_DEBUT_MATIN   As Long = 6
+Public Const LIGNE_FIN_MATIN     As Long = 20
+Public Const LIGNE_DEBUT_AM      As Long = 24
+Public Const LIGNE_FIN_AM        As Long = 27
+Public Const NB_LIGNES_MATIN     As Long = 15
+Public Const NB_LIGNES_AM        As Long = 3
+
+'------------------------------------------------------------------------------
 ' COULEURS CALENDRIER (valeurs Long VBA)
 ' Note : VBA BackColor utilise le format RGB(r, g, b)
 '------------------------------------------------------------------------------

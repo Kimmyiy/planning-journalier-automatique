@@ -10,30 +10,40 @@ Option Explicit
 '
 ' Description :
 '   Gestion de l'export du fichier Planning vers le serveur d'entreprise.
-'   Protégé par mot de passe pour éviter tout mauvais clic.
+'   Une confirmation par saisie de code évite tout export déclenché par un
+'   clic accidentel.
+'   IMPORTANT : ce code est affiché en clair dans la boîte de dialogue —
+'   ce n'est PAS un contrôle de sécurité ni une protection d'accès au
+'   serveur, seulement un garde-fou anti-clic accidentel. Si un contrôle
+'   d'accès réel au partage réseau est nécessaire, il doit être géré par
+'   les droits Windows/AD sur CHEMIN_SERVEUR, pas par ce code VBA.
 '   Génère automatiquement README.txt et Prompt_IA.txt lors de chaque export.
 '
 '   NE PAS MODIFIER ce module sauf pour :
 '     - Changer le chemin serveur (CHEMIN_SERVEUR)
 '     - Changer le nom du fichier (NOM_FICHIER_SERVEUR)
-'     - Changer le mot de passe (MDP_EXPORT)
+'     - Changer le code de confirmation (CODE_CONFIRMATION_EXPORT)
 '     - Mettre à jour la documentation (ContenuReadme / ContenuPromptIA)
 '==============================================================================
 
 '------------------------------------------------------------------------------
-' CONSTANTES — Adapter si le chemin ou le mot de passe change
+' CONSTANTES — Adapter si le chemin ou le code de confirmation change
+' ATTENTION : CHEMIN_SERVEUR contient "Test Planning 2.0.0" — à vérifier
+' avant un passage en production (chemin de test vs chemin définitif).
 '------------------------------------------------------------------------------
-Private Const CHEMIN_SERVEUR      As String = "\\scmaas01\Partage\BOLO_Files\01_Administration\03_Commun\Test Planning 2.0.0\"
-Private Const NOM_FICHIER_SERVEUR As String = "Planning.xlsm"
-Private Const MDP_EXPORT          As String = "UpDate"
+Private Const CHEMIN_SERVEUR              As String = "\\scmaas01\Partage\BOLO_Files\01_Administration\03_Commun\Test Planning 2.0.0\"
+Private Const NOM_FICHIER_SERVEUR         As String = "Planning.xlsm"
+Private Const CODE_CONFIRMATION_EXPORT    As String = "UpDate"
 
 '==============================================================================
 ' SUB : ExporterVersServeur
 '==============================================================================
 Public Sub ExporterVersServeur()
 
+    On Error GoTo ErrExport
+
     Dim saisie As String
-    saisie = InputBox("Pour valider l'action, veuillez ecrire """ & MDP_EXPORT & """" & vbCrLf & vbCrLf & _
+    saisie = InputBox("Pour valider l'action, veuillez ecrire """ & CODE_CONFIRMATION_EXPORT & """" & vbCrLf & vbCrLf & _
                       "Cette action exportera le fichier vers le serveur" & vbCrLf & _
                       "et ecrasera la version existante.", _
                       "Export vers le serveur")
@@ -43,8 +53,8 @@ Public Sub ExporterVersServeur()
         Exit Sub
     End If
 
-    If saisie <> MDP_EXPORT Then
-        MsgBox "Mot de passe incorrect. Export annulé.", vbExclamation, "Accès refusé"
+    If Trim(saisie) <> CODE_CONFIRMATION_EXPORT Then
+        MsgBox "Code de confirmation incorrect. Export annulé.", vbExclamation, "Export annulé"
         Exit Sub
     End If
 
@@ -55,7 +65,7 @@ Public Sub ExporterVersServeur()
 
     If Dir(CHEMIN_SERVEUR, vbDirectory) = "" Then
         MsgBox "Impossible d'accéder au serveur :" & vbCrLf & CHEMIN_SERVEUR & vbCrLf & vbCrLf & _
-               "Vérifiez que vous tes connecté au réseau d'entreprise.", _
+               "Vérifiez que vous êtes connecté au réseau d'entreprise.", _
                vbCritical, "Serveur inaccessible"
         Application.StatusBar = False
         Exit Sub
@@ -65,8 +75,11 @@ Public Sub ExporterVersServeur()
     dossierArchives = CHEMIN_SERVEUR & "Archives"
     If Dir(dossierArchives, vbDirectory) = "" Then MkDir dossierArchives
 
+    ' Nom d'archive horodaté (date ET heure) pour ne jamais écraser une
+    ' archive précédente en cas de double export le même jour — sans quoi
+    ' un deuxième export efface silencieusement la trace du premier.
     Dim nomArchive As String
-    nomArchive = "Planning_Sauvegarde_" & Format(Date, "YYYY-MM-DD") & ".xlsm"
+    nomArchive = "Planning_Sauvegarde_" & Format(Now, "YYYY-MM-DD_hh.nn.ss") & ".xlsm"
     Dim cheminArchive As String
     cheminArchive = dossierArchives & "\" & nomArchive
 
@@ -98,20 +111,45 @@ Public Sub ExporterVersServeur()
     Application.StatusBar = "Generation de la documentation..."
     Call ExporterDocumentation
 
-    ' Copie de la documentation vers le serveur
+    ' Copie de la documentation vers le serveur — les échecs sont
+    ' maintenant vérifiés individuellement pour ne jamais annoncer un
+    ' export "réussi" alors qu'un des deux fichiers n'a pas pu être copié.
     Application.StatusBar = "Copie de la documentation vers le serveur..."
+    Dim erreursDoc As String
+    erreursDoc = ""
+
     On Error Resume Next
+    Err.Clear
     FileCopy ThisWorkbook.Path & "\README.txt", CHEMIN_SERVEUR & "README.txt"
+    If Err.Number <> 0 Then erreursDoc = erreursDoc & "README.txt" & vbCrLf: Err.Clear
     FileCopy ThisWorkbook.Path & "\Prompt_IA.txt", CHEMIN_SERVEUR & "Prompt_IA.txt"
+    If Err.Number <> 0 Then erreursDoc = erreursDoc & "Prompt_IA.txt" & vbCrLf: Err.Clear
     On Error GoTo 0
 
     Application.StatusBar = False
 
-    MsgBox "Export réussi !" & vbCrLf & vbCrLf & _
-           "Serveur  : " & cheminServeur & vbCrLf & vbCrLf & _
-           "Archive  : " & cheminArchive & vbCrLf & vbCrLf & _
-           "Documentation mise à jour (README.txt et Prompt_IA.txt)", _
-           vbInformation, "Export terminé"
+    If erreursDoc <> "" Then
+        MsgBox "Export réussi, mais la copie de ces fichiers a échoué :" & vbCrLf & _
+               erreursDoc & vbCrLf & _
+               "Serveur  : " & cheminServeur & vbCrLf & _
+               "Archive  : " & cheminArchive, _
+               vbExclamation, "Export terminé avec avertissement"
+    Else
+        MsgBox "Export réussi !" & vbCrLf & vbCrLf & _
+               "Serveur  : " & cheminServeur & vbCrLf & vbCrLf & _
+               "Archive  : " & cheminArchive & vbCrLf & vbCrLf & _
+               "Documentation mise à jour (README.txt et Prompt_IA.txt)", _
+               vbInformation, "Export terminé"
+    End If
+
+    Exit Sub
+
+ErrExport:
+    ' Gestion d'erreur globale : sans elle, un échec de ThisWorkbook.Save,
+    ' de MkDir ou de l'écriture de la documentation laisse la barre de
+    ' statut Excel bloquée sur un message intermédiaire indéfiniment.
+    Application.StatusBar = False
+    MsgBox "Erreur lors de l'export vers le serveur :" & vbCrLf & Err.Description, vbCritical
 
 End Sub
 
