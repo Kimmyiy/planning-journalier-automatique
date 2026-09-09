@@ -3196,26 +3196,29 @@ Sub UF_AjouterFermeture(ByVal frm As Object)
 
     ' Saisie date debut
     Dim strDebut As String
-    strDebut = InputBox("Date de debut de fermeture (jj.mm.aaaa) :", _
-                        "Fermeture entreprise", _
-                        Format(Date, "dd.mm.yyyy"))
+    strDebut = Trim(frm.txtFermDebut.Value)
 
-    If strDebut = "" Then Exit Sub
+    If strDebut = "" Then
+        MsgBox "Veuillez saisir une date de début.", vbExclamation
+        Exit Sub
+    End If
 
     If Not IsDate(strDebut) Then
-        MsgBox "Date de début invalide.", vbExclamation
+        MsgBox "Date de début invalide." & vbCrLf & "Format attendu : jj.mm.aaaa", vbExclamation
         Exit Sub
     End If
 
     ' Saisie date fin
     Dim strFin As String
-    strFin = InputBox("Date de fin de fermeture (jj.mm.aaaa) :", _
-                      "Fermeture entreprise", strDebut)
+    strFin = Trim(frm.txtFermFin.Value)
 
-    If strFin = "" Then Exit Sub
+    If strFin = "" Then
+        MsgBox "Veuillez saisir une date de fin.", vbExclamation
+        Exit Sub
+    End If
 
     If Not IsDate(strFin) Then
-        MsgBox "Date de fin invalide.", vbExclamation
+        MsgBox "Date de fin invalide." & vbCrLf & "Format attendu : jj.mm.aaaa", vbExclamation
         Exit Sub
     End If
 
@@ -3231,9 +3234,7 @@ Sub UF_AjouterFermeture(ByVal frm As Object)
 
     ' Saisie nom optionnel
     Dim nomFermeture As String
-    nomFermeture = InputBox("Nom de la fermeture (optionnel) :", _
-                            "Fermeture entreprise", "Fermeture entreprise")
-
+    nomFermeture = Trim(frm.txtFermNom.Value)
     If nomFermeture = "" Then nomFermeture = "Fermeture entreprise"
 
     ' Confirmation
@@ -3243,7 +3244,7 @@ Sub UF_AjouterFermeture(ByVal frm As Object)
     Dim rep As VbMsgBoxResult
     rep = MsgBox("Ajouter la fermeture suivante ?" & vbCrLf & vbCrLf & _
                  "Nom    : " & nomFermeture & vbCrLf & _
-                 "Dù     : " & Format(dDebut, "dd.mm.yyyy") & vbCrLf & _
+                 "Du     : " & Format(dDebut, "dd.mm.yyyy") & vbCrLf & _
                  "Au     : " & Format(dFin, "dd.mm.yyyy") & vbCrLf & _
                  "Durée  : " & nbJours & " jour(s)", _
                  vbYesNo + vbQuestion, "Confirmer la fermeture")
@@ -3253,11 +3254,13 @@ Sub UF_AjouterFermeture(ByVal frm As Object)
     ' Enregistre chaque jour dans la feuille Feries
     Call Module_Feries.AjouterFermeturePeriode(dDebut, dFin, nomFermeture)
 
-    MsgBox "Fermeture d'entreprise enregistrée : " & nbJours & " jour(s) ajoute(s).", _
+    MsgBox "Fermeture d'entreprise enregistrée : " & nbJours & " jour(s) ajouté(s).", _
            vbInformation, "Fermeture entreprise"
 
-    ' Redessine le calendrier si on est sur l onglet Calendrier
-    ' (le rafraichissement est gere par l appel depuis le bouton)
+    ' Vide les champs après enregistrement
+    frm.txtFermDebut.Value = ""
+    frm.txtFermFin.Value = ""
+    frm.txtFermNom.Value = ""
 
 End Sub
 

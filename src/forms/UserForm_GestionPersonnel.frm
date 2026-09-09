@@ -18,6 +18,12 @@ Private Sub btnAjouterFermeture_Click()
     Call DessinnerCalendrier
 End Sub
 
+Private Sub btnAnnulerFermeture_Click()
+    txtFermDebut.Value = ""
+    txtFermFin.Value = ""
+    txtFermNom.Value = ""
+End Sub
+
 Private Sub cboAuxAbsente_Change()
 
 End Sub
