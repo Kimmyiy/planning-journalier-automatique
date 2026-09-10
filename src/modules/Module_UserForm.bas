@@ -2079,7 +2079,9 @@ Sub UF_DoubleclicCalendrierAuxiliaire(ByVal frm As Object, _
     jourSem = Weekday(dateJour, vbMonday)
 
     Dim groupeActif As String
-    If jourSem = 6 Or jourSem = 7 Or Module_Feries.estFerie(dateJour) Then
+    Dim estWeekendOuFerie As Boolean
+    estWeekendOuFerie = (jourSem = 6 Or jourSem = 7 Or Module_Feries.estFerie(dateJour))
+    If estWeekendOuFerie Then
         Dim lundiSem As Date
         lundiSem = dateJour - (jourSem - 1)
         Dim nbSem As Long
@@ -2087,6 +2089,19 @@ Sub UF_DoubleclicCalendrierAuxiliaire(ByVal frm As Object, _
         groupeActif = IIf(nbSem Mod 2 = 0, "G1", "G2")
         msgInfos = msgInfos & "Groupe actif : " & groupeActif & vbCrLf
     End If
+
+    ' Son groupe a elle est-il actif ce jour (WE/férié) ? En semaine, un
+    ' auxiliaire n'est jamais affecte par defaut, seulement via un renfort
+    ' deja enregistre.
+    Dim wsPersAux As Worksheet
+    Set wsPersAux = Sheets("Personnel")
+    Dim lignePersAux As Variant
+    lignePersAux = Application.Match(nomPerso, wsPersAux.Columns(C_NOM), 0)
+    Dim groupePerso As String
+    If Not IsError(lignePersAux) Then groupePerso = Trim(wsPersAux.Cells(lignePersAux, C_GROUPE).Value)
+
+    Dim estAssigneeNormalement As Boolean
+    estAssigneeNormalement = estWeekendOuFerie And (groupePerso = groupeActif)
 
     ' Verifie remplacements existants
     Dim wsRpl As Worksheet
@@ -2144,8 +2159,10 @@ Sub UF_DoubleclicCalendrierAuxiliaire(ByVal frm As Object, _
             Call UF_ChargerCalendrierPersonnel(frm)
         End If
 
-    Else
-        ' Propose ajout d un remplacement
+    ElseIf estAssigneeNormalement Then
+        ' Elle travaille normalement ce jour (son groupe est actif) et n est
+        ' pas deja marquee absente -> propose d enregistrer un remplacement
+        ' (elle sera absente et quelqu un d autre la remplace).
         choix = MsgBox(msgInfos & vbCrLf & _
                        "Voulez-vous enregistrer un remplacement pour ce jour ?", _
                        vbYesNo + vbQuestion, nomPerso)
@@ -2154,7 +2171,99 @@ Sub UF_DoubleclicCalendrierAuxiliaire(ByVal frm As Object, _
             Call UF_AjouterRemplacementDepuisCalendrier(frm, nomPerso, dateJour)
         End If
 
+    ElseIf estRempl Then
+        ' Deja enregistree en remplacement/renfort ce jour -> rien a ajouter,
+        ' juste l info (l annulation se fait depuis l onglet Auxiliaires).
+        MsgBox msgInfos, vbInformation, nomPerso
+
+    Else
+        ' Elle n est pas affectee ce jour (son groupe n est pas actif, ou
+        ' jour de semaine sans renfort enregistre) -> propose de l ajouter
+        ' en renfort plutot que de proposer un remplacement, qui n a pas de
+        ' sens puisqu elle n etait pas prevue ce jour-la.
+        choix = MsgBox(msgInfos & vbCrLf & _
+                       "Voulez-vous ajouter " & nomPerso & " en renfort pour ce jour ?", _
+                       vbYesNo + vbQuestion, nomPerso)
+
+        If choix = vbYes Then
+            Call UF_AjouterRenfortDepuisCalendrier(frm, nomPerso, dateJour)
+        End If
+
     End If
+
+End Sub
+
+'==============================================================================
+' SUB : UF_AjouterRenfortDepuisCalendrier
+' Enregistre un auxiliaire en renfort (Type="Renfort", sans personne
+' absente) sur une plage de dates, depuis un double-clic sur une case du
+' calendrier personnel ou l auxiliaire n est pas normalement affectee.
+'==============================================================================
+Sub UF_AjouterRenfortDepuisCalendrier(ByVal frm As Object, _
+                                       ByVal nomPerso As String, _
+                                       ByVal dateJour As Date)
+
+    Dim strFin As String
+    strFin = InputBox("Ajouter " & nomPerso & " en renfort à partir du " & _
+                      Format(dateJour, "dd.mm.yyyy") & "." & vbCrLf & _
+                      "Jusqu'à quelle date (jj.mm.aaaa) ?", _
+                      "Ajouter un renfort", Format(dateJour, "dd.mm.yyyy"))
+
+    If strFin = "" Then Exit Sub
+
+    If Not IsDate(strFin) Then
+        MsgBox "Date de fin invalide.", vbExclamation
+        Exit Sub
+    End If
+
+    Dim dateFin As Date
+    dateFin = CDate(strFin)
+
+    If dateFin < dateJour Then
+        MsgBox "La date de fin ne peut pas être antérieure à la date de début.", vbExclamation
+        Exit Sub
+    End If
+
+    Dim nbJours As Long
+    nbJours = DateDiff("d", dateJour, dateFin) + 1
+
+    Dim rep As VbMsgBoxResult
+    rep = MsgBox("Ajouter " & nomPerso & " en renfort ?" & vbCrLf & vbCrLf & _
+                 "Du " & Format(dateJour, "dd.mm.yyyy") & " au " & Format(dateFin, "dd.mm.yyyy") & _
+                 " (" & nbJours & " jour(s))", _
+                 vbYesNo + vbQuestion, "Confirmer le renfort")
+
+    If rep = vbNo Then Exit Sub
+
+    ' Recupere l ID
+    Dim ws As Worksheet
+    Set ws = Sheets("Personnel")
+    Dim idRempl  As String
+    Dim ligneRpl As Variant
+    ligneRpl = Application.Match(nomPerso, ws.Columns(C_NOM), 0)
+    If Not IsError(ligneRpl) Then idRempl = ws.Cells(ligneRpl, C_ID).Value
+
+    Dim wsRpl As Worksheet
+    Set wsRpl = Sheets(NOM_FEUILLE_REMPLACEMENTS)
+    Dim tbl As ListObject
+    Set tbl = wsRpl.ListObjects(NOM_TBL_REMPLACEMENTS)
+
+    Dim dateCase As Date
+    For dateCase = dateJour To dateFin
+        Dim nouvRow As ListRow
+        Set nouvRow = tbl.ListRows.Add
+        nouvRow.Range(1, RPL_COL_DATE).Value = dateCase
+        nouvRow.Range(1, RPL_COL_DATE).NumberFormat = "dd.mm.yyyy"
+        nouvRow.Range(1, RPL_COL_ID_ABSENTE).Value = ""
+        nouvRow.Range(1, RPL_COL_NOM_ABSENTE).Value = ""
+        nouvRow.Range(1, RPL_COL_ID_REMPLACANT).Value = idRempl
+        nouvRow.Range(1, RPL_COL_NOM_REMPLACANT).Value = nomPerso
+        nouvRow.Range(1, RPL_COL_TYPE).Value = "Renfort"
+    Next dateCase
+
+    MsgBox "Renfort enregistré : " & nbJours & " jour(s) ajouté(s).", vbInformation, "Renfort"
+
+    Call UF_ChargerCalendrierPersonnel(frm)
 
 End Sub
 
@@ -2180,10 +2289,12 @@ Sub UF_AjouterRemplacementDepuisCalendrier(ByVal frm As Object, _
         Exit Sub
     End If
 
-    Dim nomRempl As String
-    Dim dateRpl  As Date
+    Dim nomRempl   As String
+    Dim dateDebut  As Date
+    Dim dateFin    As Date
     nomRempl = dlg.cboRemplacant.Value
-    dateRpl = CDate(dlg.txtRplDate.Value)   ' validee par IsDate dans le dialogue
+    dateDebut = CDate(dlg.txtRplDate.Value)      ' validees par IsDate dans le dialogue
+    dateFin = CDate(dlg.txtRplDateFin.Value)
 
     Unload dlg
 
@@ -2204,26 +2315,34 @@ Sub UF_AjouterRemplacementDepuisCalendrier(ByVal frm As Object, _
 
     ' Enregistre dans Remplacements — ce chemin (depuis le calendrier
     ' personnel) enregistre toujours un vrai remplacement d'une personne
-    ' nommément absente, jamais un renfort générique.
+    ' nommément absente, jamais un renfort générique. Une ligne par jour
+    ' de la plage (permet d'enregistrer un week-end entier en une fois).
     Dim wsRpl As Worksheet
     Set wsRpl = Sheets(NOM_FEUILLE_REMPLACEMENTS)
 
     Dim tbl As ListObject
     Set tbl = wsRpl.ListObjects(NOM_TBL_REMPLACEMENTS)
-    Dim nouvRow As ListRow
-    Set nouvRow = tbl.ListRows.Add
 
-    nouvRow.Range(1, RPL_COL_DATE).Value = dateRpl
-    nouvRow.Range(1, RPL_COL_DATE).NumberFormat = "dd.mm.yyyy"
-    nouvRow.Range(1, RPL_COL_ID_ABSENTE).Value = idAbsent
-    nouvRow.Range(1, RPL_COL_NOM_ABSENTE).Value = nomPerso
-    nouvRow.Range(1, RPL_COL_ID_REMPLACANT).Value = idRempl
-    nouvRow.Range(1, RPL_COL_NOM_REMPLACANT).Value = nomRempl
-    nouvRow.Range(1, RPL_COL_TYPE).Value = "Remplacement"
+    Dim dateCase As Date
+    For dateCase = dateDebut To dateFin
+        Dim nouvRow As ListRow
+        Set nouvRow = tbl.ListRows.Add
+        nouvRow.Range(1, RPL_COL_DATE).Value = dateCase
+        nouvRow.Range(1, RPL_COL_DATE).NumberFormat = "dd.mm.yyyy"
+        nouvRow.Range(1, RPL_COL_ID_ABSENTE).Value = idAbsent
+        nouvRow.Range(1, RPL_COL_NOM_ABSENTE).Value = nomPerso
+        nouvRow.Range(1, RPL_COL_ID_REMPLACANT).Value = idRempl
+        nouvRow.Range(1, RPL_COL_NOM_REMPLACANT).Value = nomRempl
+        nouvRow.Range(1, RPL_COL_TYPE).Value = "Remplacement"
+    Next dateCase
+
+    Dim nbJoursRpl As Long
+    nbJoursRpl = DateDiff("d", dateDebut, dateFin) + 1
 
     MsgBox "Remplacement enregistré :" & vbCrLf & _
            nomRempl & " remplace " & nomPerso & vbCrLf & _
-           "Le " & Format(dateRpl, "dd.mm.yyyy"), _
+           "Du " & Format(dateDebut, "dd.mm.yyyy") & " au " & Format(dateFin, "dd.mm.yyyy") & _
+           " (" & nbJoursRpl & " jour(s))", _
            vbInformation, "Remplacement"
 
     Call UF_ChargerCalendrierPersonnel(frm)

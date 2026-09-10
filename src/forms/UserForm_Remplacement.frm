@@ -20,8 +20,14 @@ Option Explicit
 '
 ' Contrôles requis :
 '   txtRplAbsent   — TextBox  — Personne absente (lecture seule)
-'   txtRplDate     — TextBox  — Date du remplacement (jj.mm.aaaa, modifiable —
-'                               pré-remplie avec le jour cliqué dans le calendrier)
+'   txtRplDate     — TextBox  — Date de début du remplacement (jj.mm.aaaa,
+'                               modifiable — pré-remplie avec le jour cliqué
+'                               dans le calendrier)
+'   txtRplDateFin  — TextBox  — Date de fin du remplacement (jj.mm.aaaa,
+'                               NOUVEAU — pré-remplie avec la même date que
+'                               le début ; permet d'enregistrer un remplacement
+'                               sur plusieurs jours, ex. un week-end entier,
+'                               en une seule fois)
 '   cboRemplacant  — ComboBox — Liste des auxiliaires disponibles
 '   btnRplConfirmer — CommandButton — Confirmer
 '   btnRplAnnuler   — CommandButton — Annuler
@@ -69,6 +75,11 @@ Public Sub Initialiser()
     ' celle sur laquelle on a double-cliqué (ex. correction, jour voisin).
     txtRplDate.Value = Format(DateProposee, "dd.mm.yyyy")
 
+    ' Date de fin pré-remplie identique à la date de début (remplacement
+    ' d'un seul jour par défaut) — à modifier pour couvrir plusieurs jours
+    ' (ex. un week-end entier).
+    txtRplDateFin.Value = Format(DateProposee, "dd.mm.yyyy")
+
     ' Retire la personne absente de la liste des remplaçants
     Dim i As Long
     For i = 0 To cboRemplacant.ListCount - 1
@@ -86,8 +97,20 @@ End Sub
 Private Sub btnRplConfirmer_Click()
 
     If Not IsDate(txtRplDate.Value) Then
-        MsgBox "Date invalide. Format attendu : jj.mm.aaaa", vbExclamation
+        MsgBox "Date de début invalide. Format attendu : jj.mm.aaaa", vbExclamation
         txtRplDate.SetFocus
+        Exit Sub
+    End If
+
+    If Not IsDate(txtRplDateFin.Value) Then
+        MsgBox "Date de fin invalide. Format attendu : jj.mm.aaaa", vbExclamation
+        txtRplDateFin.SetFocus
+        Exit Sub
+    End If
+
+    If CDate(txtRplDateFin.Value) < CDate(txtRplDate.Value) Then
+        MsgBox "La date de fin ne peut pas être antérieure à la date de début.", vbExclamation
+        txtRplDateFin.SetFocus
         Exit Sub
     End If
 
