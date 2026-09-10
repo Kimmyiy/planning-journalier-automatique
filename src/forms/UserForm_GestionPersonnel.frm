@@ -198,48 +198,48 @@ Private Sub btnAjouterAbsence_Click()
 End Sub
 
 ' Calendrier personnel - 42 clics
-Private Sub lblCal0_Click():  Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal1_Click():  Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal2_Click():  Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal3_Click():  Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal4_Click():  Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal5_Click():  Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal6_Click():  Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal7_Click():  Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal8_Click():  Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal9_Click():  Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal10_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal11_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal12_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal13_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal14_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal15_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal16_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal17_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal18_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal19_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal20_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal21_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal22_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal23_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal24_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal25_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal26_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal27_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal28_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal29_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal30_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal31_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal32_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal33_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal34_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal35_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal36_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal37_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal38_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal39_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal40_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
-Private Sub lblCal41_Click(): Call Module_UserForm.UF_ChargerCalendrierPersonnel(Me): End Sub
+Private Sub lblCal0_Click():  Call Module_UserForm.UF_AfficherPersonnelJour(Me, 0): End Sub
+Private Sub lblCal1_Click():  Call Module_UserForm.UF_AfficherPersonnelJour(Me, 1): End Sub
+Private Sub lblCal2_Click():  Call Module_UserForm.UF_AfficherPersonnelJour(Me, 2): End Sub
+Private Sub lblCal3_Click():  Call Module_UserForm.UF_AfficherPersonnelJour(Me, 3): End Sub
+Private Sub lblCal4_Click():  Call Module_UserForm.UF_AfficherPersonnelJour(Me, 4): End Sub
+Private Sub lblCal5_Click():  Call Module_UserForm.UF_AfficherPersonnelJour(Me, 5): End Sub
+Private Sub lblCal6_Click():  Call Module_UserForm.UF_AfficherPersonnelJour(Me, 6): End Sub
+Private Sub lblCal7_Click():  Call Module_UserForm.UF_AfficherPersonnelJour(Me, 7): End Sub
+Private Sub lblCal8_Click():  Call Module_UserForm.UF_AfficherPersonnelJour(Me, 8): End Sub
+Private Sub lblCal9_Click():  Call Module_UserForm.UF_AfficherPersonnelJour(Me, 9): End Sub
+Private Sub lblCal10_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 10): End Sub
+Private Sub lblCal11_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 11): End Sub
+Private Sub lblCal12_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 12): End Sub
+Private Sub lblCal13_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 13): End Sub
+Private Sub lblCal14_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 14): End Sub
+Private Sub lblCal15_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 15): End Sub
+Private Sub lblCal16_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 16): End Sub
+Private Sub lblCal17_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 17): End Sub
+Private Sub lblCal18_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 18): End Sub
+Private Sub lblCal19_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 19): End Sub
+Private Sub lblCal20_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 20): End Sub
+Private Sub lblCal21_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 21): End Sub
+Private Sub lblCal22_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 22): End Sub
+Private Sub lblCal23_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 23): End Sub
+Private Sub lblCal24_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 24): End Sub
+Private Sub lblCal25_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 25): End Sub
+Private Sub lblCal26_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 26): End Sub
+Private Sub lblCal27_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 27): End Sub
+Private Sub lblCal28_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 28): End Sub
+Private Sub lblCal29_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 29): End Sub
+Private Sub lblCal30_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 30): End Sub
+Private Sub lblCal31_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 31): End Sub
+Private Sub lblCal32_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 32): End Sub
+Private Sub lblCal33_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 33): End Sub
+Private Sub lblCal34_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 34): End Sub
+Private Sub lblCal35_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 35): End Sub
+Private Sub lblCal36_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 36): End Sub
+Private Sub lblCal37_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 37): End Sub
+Private Sub lblCal38_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 38): End Sub
+Private Sub lblCal39_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 39): End Sub
+Private Sub lblCal40_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 40): End Sub
+Private Sub lblCal41_Click(): Call Module_UserForm.UF_AfficherPersonnelJour(Me, 41): End Sub
 
 ' Calendrier personnel - 42 double-clics
 Private Sub lblCal0_DblClick(ByVal Cancel As MSForms.ReturnBoolean):  Call Module_UserForm.UF_DoubleclicCalendrier_V2(Me, 0):  End Sub

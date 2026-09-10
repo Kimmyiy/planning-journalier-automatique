@@ -50,7 +50,7 @@ Public wsS   As Worksheet  ' Paramètres machines
 ' STRUCTURE : Personne
 ' Représente une opératrice disponible pour la journée.
 '------------------------------------------------------------------------------
-Private Type Personne
+Public Type Personne
     nom          As String   ' Nom complet
     LignePers    As Long     ' Ligne dans la feuille Personnel
     codePresence As String   ' "M" = matin, "J" = journée complète, "A" = après-midi uniquement
@@ -247,7 +247,7 @@ End Sub
 ' Retourne le groupe actif (G1/G2) pour un jour donné.
 ' Lit depuis la feuille Groupes via Module_Groupes.
 '==============================================================================
-Private Function GroupeWeekend(ByVal dateJour As Date) As String
+Public Function GroupeWeekend(ByVal dateJour As Date) As String
 
     Dim groupe As String
     groupe = Module_Groupes.GetGroupeJour(dateJour)
@@ -281,7 +281,7 @@ End Function
 ' Fixe (semaine) ou Auxiliaires (weekend/férié) selon le type de jour.
 ' Gère les absences, remplacements et congés.
 '==============================================================================
-Private Function ChargerPersonnes(ByVal planningDate As Date, _
+Public Function ChargerPersonnes(ByVal planningDate As Date, _
                                    ByVal jourSem As Long, _
                                    ByVal estJourAux As Boolean, _
                                    ByVal groupeActif As String, _

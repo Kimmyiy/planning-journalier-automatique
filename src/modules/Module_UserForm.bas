@@ -1789,6 +1789,61 @@ Private Sub EffacerCalendrierPersonnel(ByVal frm As Object)
 End Sub
 
 '==============================================================================
+' SUB : UF_AfficherPersonnelJour
+' Affiche dans une boîte de dialogue le personnel présent au jour cliqué
+' dans le calendrier personnel (onglet Personnel, simple clic sur une case).
+'==============================================================================
+Sub UF_AfficherPersonnelJour(ByVal frm As Object, ByVal indexJour As Integer)
+
+    Dim lbl As MSForms.Label
+    Set lbl = frm.Controls("lblCal" & indexJour)
+    If lbl.Tag = "" Then Exit Sub
+
+    Dim dateJour As Date
+    dateJour = CDate(CDbl(lbl.Tag))
+
+    Call Planning_Auto.Mem
+
+    Dim jourSem           As Long
+    Dim estWeekend        As Boolean
+    Dim estFerieEnSemaine As Boolean
+    Dim estJourAux        As Boolean
+
+    jourSem = Weekday(dateJour, vbMonday)
+    estWeekend = (jourSem = 6 Or jourSem = 7)
+    estFerieEnSemaine = Module_Feries.estFerie(dateJour) And Not estWeekend
+    estJourAux = estWeekend Or estFerieEnSemaine
+
+    Dim groupeActif As String
+    If estJourAux Then groupeActif = Planning_Auto.GroupeWeekend(dateJour)
+
+    Dim personnes()  As Planning_Auto.Personne
+    Dim nbPersonnes  As Long
+    nbPersonnes = Planning_Auto.ChargerPersonnes(dateJour, jourSem, estJourAux, groupeActif, personnes)
+
+    Dim msg As String
+    msg = "Personnel présent le " & Format(dateJour, "dddd dd.mm.yyyy") & " :" & vbCrLf & vbCrLf
+
+    If nbPersonnes = 0 Then
+        msg = msg & "Aucune personne disponible ce jour."
+    Else
+        Dim i As Long
+        For i = 1 To nbPersonnes
+            Dim libellePresence As String
+            Select Case personnes(i).codePresence
+                Case "M": libellePresence = "Matin"
+                Case "A": libellePresence = "Après-midi"
+                Case Else: libellePresence = "Journée complète"
+            End Select
+            msg = msg & "  - " & personnes(i).nom & " (" & libellePresence & ")" & vbCrLf
+        Next i
+    End If
+
+    MsgBox msg, vbInformation, "Personnel du jour"
+
+End Sub
+
+'==============================================================================
 ' SUB : UF_CalendrierMoisPrecedent
 ' Navigation - mois precedent
 '==============================================================================
