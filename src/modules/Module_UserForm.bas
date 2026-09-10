@@ -40,10 +40,11 @@ Private Const C_STATS_EXP As Long = 23
 ' CONSTANTES - Colonnes du tableau Tbl_Parametres
 '------------------------------------------------------------------------------
 Private Const P_MACHINE    As Long = 1  ' A - Nom machine
-Private Const P_SEUIL1     As Long = 2  ' B - Seuil 2 personnes
+Private Const P_SEUIL1     As Long = 2  ' B - Seuil 2 personnes (ou Nombre fixe en mode Nombre)
 Private Const P_SEUIL2     As Long = 3  ' C - Seuil 3 personnes
 Private Const P_MAX        As Long = 4  ' D - Quantite max
 Private Const P_FERMETURE  As Long = 5  ' E - Fermeture (VRAI/FAUX)
+Private Const P_MODE       As Long = 6  ' F - Mode (Seuil / Nombre)
 
 ' Couleurs groupes auxiliaires (identiques au calendrier)
 Private Const COULEUR_G1 As Long = 11393254  ' Bleu clair  RGB(173,216,230)
@@ -1317,6 +1318,12 @@ Sub UF_ChargerParametres(ByVal frm As Object)
         Exit Sub
     End If
 
+    ' Mode global Seuil/Nombre, lu sur la ligne Vaox5-A et applique aux 4
+    ' machines Vaox5 (bouton bascule unique). Repli sur "Seuil" si la
+    ' colonne Mode n existe pas encore dans le tableau.
+    Dim modeGlobal As String
+    modeGlobal = MODE_PARAM_SEUIL
+
     ' Parcourt chaque ligne du tableau
     Dim i As Long
     For i = 1 To tbl.ListRows.count
@@ -1341,6 +1348,13 @@ Sub UF_ChargerParametres(ByVal frm As Object)
                 frm.txtS2A.Value = seuil2
                 frm.txtMaxA.Value = max_val
                 frm.chkFermA.Value = ferme
+
+                On Error Resume Next
+                Dim modeLu As String
+                modeLu = Trim(tbl.DataBodyRange(i, P_MODE).Value)
+                On Error GoTo 0
+                If modeLu = MODE_PARAM_NOMBRE Then modeGlobal = MODE_PARAM_NOMBRE
+
             Case "Vaox5-B"
                 frm.txtS1B.Value = seuil1
                 frm.txtS2B.Value = seuil2
@@ -1361,12 +1375,66 @@ Sub UF_ChargerParametres(ByVal frm As Object)
         End Select
 
     Next i
-    
+
+    Call AppliquerModeParametres(frm, modeGlobal)
+
     ' Effectif minimum semaine
     On Error Resume Next
     frm.txtEffectifMin.Value = CStr(Sheets(NOM_FEUILLE_PARAMETRES).Range("Effectif_Minimum").Value)
     On Error GoTo 0
-    
+
+End Sub
+
+'==============================================================================
+' SUB : UF_BasculerModeParametres
+' Bouton bascule (btnModeParametres) : change le mode Seuil/Nombre pour les
+' 4 machines Vaox5 en meme temps.
+'==============================================================================
+Sub UF_BasculerModeParametres(ByVal frm As Object)
+
+    Dim modeActuel As String
+    modeActuel = frm.btnModeParametres.Tag
+    If modeActuel = "" Then modeActuel = MODE_PARAM_SEUIL
+
+    Dim nouveauMode As String
+    nouveauMode = IIf(modeActuel = MODE_PARAM_SEUIL, MODE_PARAM_NOMBRE, MODE_PARAM_SEUIL)
+
+    Call AppliquerModeParametres(frm, nouveauMode)
+
+End Sub
+
+'==============================================================================
+' SUB : AppliquerModeParametres
+' Met a jour l affichage de l onglet Parametres selon le mode Seuil/Nombre :
+'   Seuil  : les 3 champs (Seuil 2 pers., Seuil 3 pers., Max) sont actifs,
+'            calcul habituel a partir de la quantite en epreuve.
+'   Nombre : seul "Seuil 2 pers." reste actif - il contient alors
+'            directement le nombre fixe de personnes a affecter. Les deux
+'            autres champs sont grises (valeurs conservees mais ignorees
+'            tant que le mode Nombre est actif).
+' Le mode courant est stocke dans le Tag du bouton bascule.
+'==============================================================================
+Private Sub AppliquerModeParametres(ByVal frm As Object, ByVal mode As String)
+
+    Dim actifSeuil As Boolean
+    actifSeuil = (mode = MODE_PARAM_SEUIL)
+
+    frm.txtS2A.Enabled = actifSeuil
+    frm.txtMaxA.Enabled = actifSeuil
+    frm.txtS2B.Enabled = actifSeuil
+    frm.txtMaxB.Enabled = actifSeuil
+    frm.txtS2C.Enabled = actifSeuil
+    frm.txtMaxC.Enabled = actifSeuil
+    frm.TxtS2D.Enabled = actifSeuil
+    frm.txtMaxD.Enabled = actifSeuil
+
+    frm.btnModeParametres.Tag = mode
+    If actifSeuil Then
+        frm.btnModeParametres.Caption = "Mode : Seuil de quantité (cliquer pour passer en Nombre fixe)"
+    Else
+        frm.btnModeParametres.Caption = "Mode : Nombre fixe (cliquer pour passer en Seuil de quantité)"
+    End If
+
 End Sub
 
 '==============================================================================
@@ -1394,6 +1462,12 @@ Sub UF_EnregistrerParametres(ByVal frm As Object)
     Dim tbl As ListObject
     Set tbl = ws.ListObjects("Tbl_Parametres")
 
+    ' Mode courant (Seuil/Nombre), stocke dans le Tag du bouton bascule par
+    ' AppliquerModeParametres. Applique aux 4 machines Vaox5.
+    Dim modeActuel As String
+    modeActuel = frm.btnModeParametres.Tag
+    If modeActuel = "" Then modeActuel = MODE_PARAM_SEUIL
+
     ' Ecrit chaque ligne du tableau
     Dim i As Long
     For i = 1 To tbl.ListRows.count
@@ -1407,21 +1481,33 @@ Sub UF_EnregistrerParametres(ByVal frm As Object)
                 tbl.DataBodyRange(i, P_SEUIL2).Value = CLng(frm.txtS2A.Value)
                 tbl.DataBodyRange(i, P_MAX).Value = CLng(frm.txtMaxA.Value)
                 tbl.DataBodyRange(i, P_FERMETURE).Value = frm.chkFermA.Value
+                On Error Resume Next
+                tbl.DataBodyRange(i, P_MODE).Value = modeActuel
+                On Error GoTo 0
             Case "Vaox5-B"
                 tbl.DataBodyRange(i, P_SEUIL1).Value = CLng(frm.txtS1B.Value)
                 tbl.DataBodyRange(i, P_SEUIL2).Value = CLng(frm.txtS2B.Value)
                 tbl.DataBodyRange(i, P_MAX).Value = CLng(frm.txtMaxB.Value)
                 tbl.DataBodyRange(i, P_FERMETURE).Value = frm.chkFermB.Value
+                On Error Resume Next
+                tbl.DataBodyRange(i, P_MODE).Value = modeActuel
+                On Error GoTo 0
             Case "Vaox5-C"
                 tbl.DataBodyRange(i, P_SEUIL1).Value = CLng(frm.txtS1C.Value)
                 tbl.DataBodyRange(i, P_SEUIL2).Value = CLng(frm.txtS2C.Value)
                 tbl.DataBodyRange(i, P_MAX).Value = CLng(frm.txtMaxC.Value)
                 tbl.DataBodyRange(i, P_FERMETURE).Value = frm.chkFermC.Value
+                On Error Resume Next
+                tbl.DataBodyRange(i, P_MODE).Value = modeActuel
+                On Error GoTo 0
             Case "Vaox5-D"
                 tbl.DataBodyRange(i, P_SEUIL1).Value = CLng(frm.txtS1D.Value)
                 tbl.DataBodyRange(i, P_SEUIL2).Value = CLng(frm.TxtS2D.Value)
                 tbl.DataBodyRange(i, P_MAX).Value = CLng(frm.txtMaxD.Value)
                 tbl.DataBodyRange(i, P_FERMETURE).Value = frm.chkFermD.Value
+                On Error Resume Next
+                tbl.DataBodyRange(i, P_MODE).Value = modeActuel
+                On Error GoTo 0
             Case "Vaox1-A&B"
                 tbl.DataBodyRange(i, P_FERMETURE).Value = frm.chkFermV1.Value
         End Select
@@ -1789,6 +1875,61 @@ Private Sub EffacerCalendrierPersonnel(ByVal frm As Object)
 End Sub
 
 '==============================================================================
+' SUB : UF_AfficherPersonnelJour
+' Affiche dans une boîte de dialogue le personnel présent au jour cliqué
+' dans le calendrier personnel (onglet Personnel, simple clic sur une case).
+'==============================================================================
+Sub UF_AfficherPersonnelJour(ByVal frm As Object, ByVal indexJour As Integer)
+
+    Dim lbl As MSForms.Label
+    Set lbl = frm.Controls("lblCal" & indexJour)
+    If lbl.Tag = "" Then Exit Sub
+
+    Dim dateJour As Date
+    dateJour = CDate(CDbl(lbl.Tag))
+
+    Call Planning_Auto.Mem
+
+    Dim jourSem           As Long
+    Dim estWeekend        As Boolean
+    Dim estFerieEnSemaine As Boolean
+    Dim estJourAux        As Boolean
+
+    jourSem = Weekday(dateJour, vbMonday)
+    estWeekend = (jourSem = 6 Or jourSem = 7)
+    estFerieEnSemaine = Module_Feries.estFerie(dateJour) And Not estWeekend
+    estJourAux = estWeekend Or estFerieEnSemaine
+
+    Dim groupeActif As String
+    If estJourAux Then groupeActif = Planning_Auto.GroupeWeekend(dateJour)
+
+    Dim personnes()  As Planning_Auto.Personne
+    Dim nbPersonnes  As Long
+    nbPersonnes = Planning_Auto.ChargerPersonnes(dateJour, jourSem, estJourAux, groupeActif, personnes)
+
+    Dim msg As String
+    msg = "Personnel présent le " & Format(dateJour, "dddd dd.mm.yyyy") & " :" & vbCrLf & vbCrLf
+
+    If nbPersonnes = 0 Then
+        msg = msg & "Aucune personne disponible ce jour."
+    Else
+        Dim i As Long
+        For i = 1 To nbPersonnes
+            Dim libellePresence As String
+            Select Case personnes(i).codePresence
+                Case "M": libellePresence = "Matin"
+                Case "A": libellePresence = "Après-midi"
+                Case Else: libellePresence = "Journée complète"
+            End Select
+            msg = msg & "  - " & personnes(i).nom & " (" & libellePresence & ")" & vbCrLf
+        Next i
+    End If
+
+    MsgBox msg, vbInformation, "Personnel du jour"
+
+End Sub
+
+'==============================================================================
 ' SUB : UF_CalendrierMoisPrecedent
 ' Navigation - mois precedent
 '==============================================================================
@@ -2024,7 +2165,9 @@ Sub UF_DoubleclicCalendrierAuxiliaire(ByVal frm As Object, _
     jourSem = Weekday(dateJour, vbMonday)
 
     Dim groupeActif As String
-    If jourSem = 6 Or jourSem = 7 Or Module_Feries.estFerie(dateJour) Then
+    Dim estWeekendOuFerie As Boolean
+    estWeekendOuFerie = (jourSem = 6 Or jourSem = 7 Or Module_Feries.estFerie(dateJour))
+    If estWeekendOuFerie Then
         Dim lundiSem As Date
         lundiSem = dateJour - (jourSem - 1)
         Dim nbSem As Long
@@ -2032,6 +2175,19 @@ Sub UF_DoubleclicCalendrierAuxiliaire(ByVal frm As Object, _
         groupeActif = IIf(nbSem Mod 2 = 0, "G1", "G2")
         msgInfos = msgInfos & "Groupe actif : " & groupeActif & vbCrLf
     End If
+
+    ' Son groupe a elle est-il actif ce jour (WE/férié) ? En semaine, un
+    ' auxiliaire n'est jamais affecte par defaut, seulement via un renfort
+    ' deja enregistre.
+    Dim wsPersAux As Worksheet
+    Set wsPersAux = Sheets("Personnel")
+    Dim lignePersAux As Variant
+    lignePersAux = Application.Match(nomPerso, wsPersAux.Columns(C_NOM), 0)
+    Dim groupePerso As String
+    If Not IsError(lignePersAux) Then groupePerso = Trim(wsPersAux.Cells(lignePersAux, C_GROUPE).Value)
+
+    Dim estAssigneeNormalement As Boolean
+    estAssigneeNormalement = estWeekendOuFerie And (groupePerso = groupeActif)
 
     ' Verifie remplacements existants
     Dim wsRpl As Worksheet
@@ -2089,8 +2245,10 @@ Sub UF_DoubleclicCalendrierAuxiliaire(ByVal frm As Object, _
             Call UF_ChargerCalendrierPersonnel(frm)
         End If
 
-    Else
-        ' Propose ajout d un remplacement
+    ElseIf estAssigneeNormalement Then
+        ' Elle travaille normalement ce jour (son groupe est actif) et n est
+        ' pas deja marquee absente -> propose d enregistrer un remplacement
+        ' (elle sera absente et quelqu un d autre la remplace).
         choix = MsgBox(msgInfos & vbCrLf & _
                        "Voulez-vous enregistrer un remplacement pour ce jour ?", _
                        vbYesNo + vbQuestion, nomPerso)
@@ -2099,7 +2257,99 @@ Sub UF_DoubleclicCalendrierAuxiliaire(ByVal frm As Object, _
             Call UF_AjouterRemplacementDepuisCalendrier(frm, nomPerso, dateJour)
         End If
 
+    ElseIf estRempl Then
+        ' Deja enregistree en remplacement/renfort ce jour -> rien a ajouter,
+        ' juste l info (l annulation se fait depuis l onglet Auxiliaires).
+        MsgBox msgInfos, vbInformation, nomPerso
+
+    Else
+        ' Elle n est pas affectee ce jour (son groupe n est pas actif, ou
+        ' jour de semaine sans renfort enregistre) -> propose de l ajouter
+        ' en renfort plutot que de proposer un remplacement, qui n a pas de
+        ' sens puisqu elle n etait pas prevue ce jour-la.
+        choix = MsgBox(msgInfos & vbCrLf & _
+                       "Voulez-vous ajouter " & nomPerso & " en renfort pour ce jour ?", _
+                       vbYesNo + vbQuestion, nomPerso)
+
+        If choix = vbYes Then
+            Call UF_AjouterRenfortDepuisCalendrier(frm, nomPerso, dateJour)
+        End If
+
     End If
+
+End Sub
+
+'==============================================================================
+' SUB : UF_AjouterRenfortDepuisCalendrier
+' Enregistre un auxiliaire en renfort (Type="Renfort", sans personne
+' absente) sur une plage de dates, depuis un double-clic sur une case du
+' calendrier personnel ou l auxiliaire n est pas normalement affectee.
+'==============================================================================
+Sub UF_AjouterRenfortDepuisCalendrier(ByVal frm As Object, _
+                                       ByVal nomPerso As String, _
+                                       ByVal dateJour As Date)
+
+    Dim strFin As String
+    strFin = InputBox("Ajouter " & nomPerso & " en renfort à partir du " & _
+                      Format(dateJour, "dd.mm.yyyy") & "." & vbCrLf & _
+                      "Jusqu'à quelle date (jj.mm.aaaa) ?", _
+                      "Ajouter un renfort", Format(dateJour, "dd.mm.yyyy"))
+
+    If strFin = "" Then Exit Sub
+
+    If Not IsDate(strFin) Then
+        MsgBox "Date de fin invalide.", vbExclamation
+        Exit Sub
+    End If
+
+    Dim dateFin As Date
+    dateFin = CDate(strFin)
+
+    If dateFin < dateJour Then
+        MsgBox "La date de fin ne peut pas être antérieure à la date de début.", vbExclamation
+        Exit Sub
+    End If
+
+    Dim nbJours As Long
+    nbJours = DateDiff("d", dateJour, dateFin) + 1
+
+    Dim rep As VbMsgBoxResult
+    rep = MsgBox("Ajouter " & nomPerso & " en renfort ?" & vbCrLf & vbCrLf & _
+                 "Du " & Format(dateJour, "dd.mm.yyyy") & " au " & Format(dateFin, "dd.mm.yyyy") & _
+                 " (" & nbJours & " jour(s))", _
+                 vbYesNo + vbQuestion, "Confirmer le renfort")
+
+    If rep = vbNo Then Exit Sub
+
+    ' Recupere l ID
+    Dim ws As Worksheet
+    Set ws = Sheets("Personnel")
+    Dim idRempl  As String
+    Dim ligneRpl As Variant
+    ligneRpl = Application.Match(nomPerso, ws.Columns(C_NOM), 0)
+    If Not IsError(ligneRpl) Then idRempl = ws.Cells(ligneRpl, C_ID).Value
+
+    Dim wsRpl As Worksheet
+    Set wsRpl = Sheets(NOM_FEUILLE_REMPLACEMENTS)
+    Dim tbl As ListObject
+    Set tbl = wsRpl.ListObjects(NOM_TBL_REMPLACEMENTS)
+
+    Dim dateCase As Date
+    For dateCase = dateJour To dateFin
+        Dim nouvRow As ListRow
+        Set nouvRow = tbl.ListRows.Add
+        nouvRow.Range(1, RPL_COL_DATE).Value = dateCase
+        nouvRow.Range(1, RPL_COL_DATE).NumberFormat = "dd.mm.yyyy"
+        nouvRow.Range(1, RPL_COL_ID_ABSENTE).Value = ""
+        nouvRow.Range(1, RPL_COL_NOM_ABSENTE).Value = ""
+        nouvRow.Range(1, RPL_COL_ID_REMPLACANT).Value = idRempl
+        nouvRow.Range(1, RPL_COL_NOM_REMPLACANT).Value = nomPerso
+        nouvRow.Range(1, RPL_COL_TYPE).Value = "Renfort"
+    Next dateCase
+
+    MsgBox "Renfort enregistré : " & nbJours & " jour(s) ajouté(s).", vbInformation, "Renfort"
+
+    Call UF_ChargerCalendrierPersonnel(frm)
 
 End Sub
 
@@ -2125,10 +2375,12 @@ Sub UF_AjouterRemplacementDepuisCalendrier(ByVal frm As Object, _
         Exit Sub
     End If
 
-    Dim nomRempl As String
-    Dim dateRpl  As Date
+    Dim nomRempl   As String
+    Dim dateDebut  As Date
+    Dim dateFin    As Date
     nomRempl = dlg.cboRemplacant.Value
-    dateRpl = CDate(dlg.txtRplDate.Value)   ' validee par IsDate dans le dialogue
+    dateDebut = CDate(dlg.txtRplDate.Value)      ' validees par IsDate dans le dialogue
+    dateFin = CDate(dlg.txtRplDateFin.Value)
 
     Unload dlg
 
@@ -2149,26 +2401,34 @@ Sub UF_AjouterRemplacementDepuisCalendrier(ByVal frm As Object, _
 
     ' Enregistre dans Remplacements — ce chemin (depuis le calendrier
     ' personnel) enregistre toujours un vrai remplacement d'une personne
-    ' nommément absente, jamais un renfort générique.
+    ' nommément absente, jamais un renfort générique. Une ligne par jour
+    ' de la plage (permet d'enregistrer un week-end entier en une fois).
     Dim wsRpl As Worksheet
     Set wsRpl = Sheets(NOM_FEUILLE_REMPLACEMENTS)
 
     Dim tbl As ListObject
     Set tbl = wsRpl.ListObjects(NOM_TBL_REMPLACEMENTS)
-    Dim nouvRow As ListRow
-    Set nouvRow = tbl.ListRows.Add
 
-    nouvRow.Range(1, RPL_COL_DATE).Value = dateRpl
-    nouvRow.Range(1, RPL_COL_DATE).NumberFormat = "dd.mm.yyyy"
-    nouvRow.Range(1, RPL_COL_ID_ABSENTE).Value = idAbsent
-    nouvRow.Range(1, RPL_COL_NOM_ABSENTE).Value = nomPerso
-    nouvRow.Range(1, RPL_COL_ID_REMPLACANT).Value = idRempl
-    nouvRow.Range(1, RPL_COL_NOM_REMPLACANT).Value = nomRempl
-    nouvRow.Range(1, RPL_COL_TYPE).Value = "Remplacement"
+    Dim dateCase As Date
+    For dateCase = dateDebut To dateFin
+        Dim nouvRow As ListRow
+        Set nouvRow = tbl.ListRows.Add
+        nouvRow.Range(1, RPL_COL_DATE).Value = dateCase
+        nouvRow.Range(1, RPL_COL_DATE).NumberFormat = "dd.mm.yyyy"
+        nouvRow.Range(1, RPL_COL_ID_ABSENTE).Value = idAbsent
+        nouvRow.Range(1, RPL_COL_NOM_ABSENTE).Value = nomPerso
+        nouvRow.Range(1, RPL_COL_ID_REMPLACANT).Value = idRempl
+        nouvRow.Range(1, RPL_COL_NOM_REMPLACANT).Value = nomRempl
+        nouvRow.Range(1, RPL_COL_TYPE).Value = "Remplacement"
+    Next dateCase
+
+    Dim nbJoursRpl As Long
+    nbJoursRpl = DateDiff("d", dateDebut, dateFin) + 1
 
     MsgBox "Remplacement enregistré :" & vbCrLf & _
            nomRempl & " remplace " & nomPerso & vbCrLf & _
-           "Le " & Format(dateRpl, "dd.mm.yyyy"), _
+           "Du " & Format(dateDebut, "dd.mm.yyyy") & " au " & Format(dateFin, "dd.mm.yyyy") & _
+           " (" & nbJoursRpl & " jour(s))", _
            vbInformation, "Remplacement"
 
     Call UF_ChargerCalendrierPersonnel(frm)
@@ -3196,26 +3456,29 @@ Sub UF_AjouterFermeture(ByVal frm As Object)
 
     ' Saisie date debut
     Dim strDebut As String
-    strDebut = InputBox("Date de debut de fermeture (jj.mm.aaaa) :", _
-                        "Fermeture entreprise", _
-                        Format(Date, "dd.mm.yyyy"))
+    strDebut = Trim(frm.txtFermDebut.Value)
 
-    If strDebut = "" Then Exit Sub
+    If strDebut = "" Then
+        MsgBox "Veuillez saisir une date de début.", vbExclamation
+        Exit Sub
+    End If
 
     If Not IsDate(strDebut) Then
-        MsgBox "Date de début invalide.", vbExclamation
+        MsgBox "Date de début invalide." & vbCrLf & "Format attendu : jj.mm.aaaa", vbExclamation
         Exit Sub
     End If
 
     ' Saisie date fin
     Dim strFin As String
-    strFin = InputBox("Date de fin de fermeture (jj.mm.aaaa) :", _
-                      "Fermeture entreprise", strDebut)
+    strFin = Trim(frm.txtFermFin.Value)
 
-    If strFin = "" Then Exit Sub
+    If strFin = "" Then
+        MsgBox "Veuillez saisir une date de fin.", vbExclamation
+        Exit Sub
+    End If
 
     If Not IsDate(strFin) Then
-        MsgBox "Date de fin invalide.", vbExclamation
+        MsgBox "Date de fin invalide." & vbCrLf & "Format attendu : jj.mm.aaaa", vbExclamation
         Exit Sub
     End If
 
@@ -3231,9 +3494,7 @@ Sub UF_AjouterFermeture(ByVal frm As Object)
 
     ' Saisie nom optionnel
     Dim nomFermeture As String
-    nomFermeture = InputBox("Nom de la fermeture (optionnel) :", _
-                            "Fermeture entreprise", "Fermeture entreprise")
-
+    nomFermeture = Trim(frm.txtFermNom.Value)
     If nomFermeture = "" Then nomFermeture = "Fermeture entreprise"
 
     ' Confirmation
@@ -3243,7 +3504,7 @@ Sub UF_AjouterFermeture(ByVal frm As Object)
     Dim rep As VbMsgBoxResult
     rep = MsgBox("Ajouter la fermeture suivante ?" & vbCrLf & vbCrLf & _
                  "Nom    : " & nomFermeture & vbCrLf & _
-                 "Dù     : " & Format(dDebut, "dd.mm.yyyy") & vbCrLf & _
+                 "Du     : " & Format(dDebut, "dd.mm.yyyy") & vbCrLf & _
                  "Au     : " & Format(dFin, "dd.mm.yyyy") & vbCrLf & _
                  "Durée  : " & nbJours & " jour(s)", _
                  vbYesNo + vbQuestion, "Confirmer la fermeture")
@@ -3253,11 +3514,13 @@ Sub UF_AjouterFermeture(ByVal frm As Object)
     ' Enregistre chaque jour dans la feuille Feries
     Call Module_Feries.AjouterFermeturePeriode(dDebut, dFin, nomFermeture)
 
-    MsgBox "Fermeture d'entreprise enregistrée : " & nbJours & " jour(s) ajoute(s).", _
+    MsgBox "Fermeture d'entreprise enregistrée : " & nbJours & " jour(s) ajouté(s).", _
            vbInformation, "Fermeture entreprise"
 
-    ' Redessine le calendrier si on est sur l onglet Calendrier
-    ' (le rafraichissement est gere par l appel depuis le bouton)
+    ' Vide les champs après enregistrement
+    frm.txtFermDebut.Value = ""
+    frm.txtFermFin.Value = ""
+    frm.txtFermNom.Value = ""
 
 End Sub
 

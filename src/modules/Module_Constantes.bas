@@ -157,10 +157,17 @@ Public Const RPL_COL_TYPE           As Long = 6
 ' COLONNES DU TABLEAU Tbl_Parametres (feuille Parametres)
 '------------------------------------------------------------------------------
 Public Const PARAM_MACHINE       As Long = 1  ' A — Nom de la machine
-Public Const PARAM_SEUIL1        As Long = 2  ' B — Seuil 2 personnes
+Public Const PARAM_SEUIL1        As Long = 2  ' B — Seuil 2 personnes (ou Nombre fixe en mode Nombre)
 Public Const PARAM_SEUIL2        As Long = 3  ' C — Seuil 3 personnes
 Public Const PARAM_MAX           As Long = 4  ' D — Quantité max
 Public Const PARAM_FERMETURE     As Long = 5  ' E — Fermeture (VRAI/FAUX)
+Public Const PARAM_MODE          As Long = 6  ' F — Mode (Seuil / Nombre), colonne ajoutée v2.0.4
+
+'------------------------------------------------------------------------------
+' MODES DE CALCUL — Tbl_Parametres, colonne Mode
+'------------------------------------------------------------------------------
+Public Const MODE_PARAM_SEUIL    As String = "Seuil"
+Public Const MODE_PARAM_NOMBRE   As String = "Nombre"
 
 '------------------------------------------------------------------------------
 ' MISE EN PAGE — Feuille Planning journalier (tableaux Planning_Matin/AM)

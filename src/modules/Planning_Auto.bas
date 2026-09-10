@@ -50,7 +50,7 @@ Public wsS   As Worksheet  ' Paramètres machines
 ' STRUCTURE : Personne
 ' Représente une opératrice disponible pour la journée.
 '------------------------------------------------------------------------------
-Private Type Personne
+Public Type Personne
     nom          As String   ' Nom complet
     LignePers    As Long     ' Ligne dans la feuille Personnel
     codePresence As String   ' "M" = matin, "J" = journée complète, "A" = après-midi uniquement
@@ -247,7 +247,7 @@ End Sub
 ' Retourne le groupe actif (G1/G2) pour un jour donné.
 ' Lit depuis la feuille Groupes via Module_Groupes.
 '==============================================================================
-Private Function GroupeWeekend(ByVal dateJour As Date) As String
+Public Function GroupeWeekend(ByVal dateJour As Date) As String
 
     Dim groupe As String
     groupe = Module_Groupes.GetGroupeJour(dateJour)
@@ -281,7 +281,7 @@ End Function
 ' Fixe (semaine) ou Auxiliaires (weekend/férié) selon le type de jour.
 ' Gère les absences, remplacements et congés.
 '==============================================================================
-Private Function ChargerPersonnes(ByVal planningDate As Date, _
+Public Function ChargerPersonnes(ByVal planningDate As Date, _
                                    ByVal jourSem As Long, _
                                    ByVal estJourAux As Boolean, _
                                    ByVal groupeActif As String, _
@@ -463,24 +463,26 @@ Private Function ConstruireListePostes(ByRef postes() As String, _
     Dim qteD As Long: qteD = Val(wsP.Range(CELL_QTE_VAOX5D).Value)
 
     ' --- Lecture des paramètres depuis Tbl_Parametres ---
-    Dim s1A As Long, s2A As Long, maxA As Long, fermA As Boolean
-    Dim s1B As Long, s2B As Long, maxB As Long, fermB As Boolean
-    Dim s1C As Long, s2C As Long, maxC As Long, fermC As Boolean
-    Dim s1D As Long, s2D As Long, maxD As Long, fermD As Boolean
-    Dim fermV1 As Boolean, maxV1 As Long
+    Dim s1A As Long, s2A As Long, maxA As Long, fermA As Boolean, modeA As String
+    Dim s1B As Long, s2B As Long, maxB As Long, fermB As Boolean, modeB As String
+    Dim s1C As Long, s2C As Long, maxC As Long, fermC As Boolean, modeC As String
+    Dim s1D As Long, s2D As Long, maxD As Long, fermD As Boolean, modeD As String
+    Dim fermV1 As Boolean, maxV1 As Long, modeV1 As String
 
-    If Not LireParametresMachine(MACHINE_VAOX5A, s1A, s2A, maxA, fermA) Then Exit Function
-    If Not LireParametresMachine(MACHINE_VAOX5B, s1B, s2B, maxB, fermB) Then Exit Function
-    If Not LireParametresMachine(MACHINE_VAOX5C, s1C, s2C, maxC, fermC) Then Exit Function
-    If Not LireParametresMachine(MACHINE_VAOX5D, s1D, s2D, maxD, fermD) Then Exit Function
-    If Not LireParametresMachine(PARAM_VAOX1, 0, 0, maxV1, fermV1) Then Exit Function
+    If Not LireParametresMachine(MACHINE_VAOX5A, s1A, s2A, maxA, fermA, modeA) Then Exit Function
+    If Not LireParametresMachine(MACHINE_VAOX5B, s1B, s2B, maxB, fermB, modeB) Then Exit Function
+    If Not LireParametresMachine(MACHINE_VAOX5C, s1C, s2C, maxC, fermC, modeC) Then Exit Function
+    If Not LireParametresMachine(MACHINE_VAOX5D, s1D, s2D, maxD, fermD, modeD) Then Exit Function
+    If Not LireParametresMachine(PARAM_VAOX1, 0, 0, maxV1, fermV1, modeV1) Then Exit Function
 
     ' --- Calcul du nombre de personnes par machine ---
+    ' Mode Nombre : le champ Seuil1 (réutilisé) contient directement le
+    ' nombre de personnes voulu, indépendamment de la quantité en épreuve.
     Dim nbVaox1 As Long: nbVaox1 = IIf(fermV1, 0, NB_VAOX1)
-    Dim nbA As Long: nbA = IIf(fermA, 0, CalculerNbPersonnes(qteA, s1A, s2A))
-    Dim nbB As Long: nbB = IIf(fermB, 0, CalculerNbPersonnes(qteB, s1B, s2B))
-    Dim nbC As Long: nbC = IIf(fermC, 0, CalculerNbPersonnes(qteC, s1C, s2C))
-    Dim nbD As Long: nbD = IIf(fermD, 0, CalculerNbPersonnes(qteD, s1D, s2D))
+    Dim nbA As Long: nbA = IIf(fermA, 0, ObtenirNbPersonnesMachine(modeA, qteA, s1A, s2A))
+    Dim nbB As Long: nbB = IIf(fermB, 0, ObtenirNbPersonnesMachine(modeB, qteB, s1B, s2B))
+    Dim nbC As Long: nbC = IIf(fermC, 0, ObtenirNbPersonnesMachine(modeC, qteC, s1C, s2C))
+    Dim nbD As Long: nbD = IIf(fermD, 0, ObtenirNbPersonnesMachine(modeD, qteD, s1D, s2D))
 
     ' --- Construction de la liste ---
     Dim maxPostes As Long
@@ -554,7 +556,8 @@ Private Function LireParametresMachine(ByVal nomMachine As String, _
                                         ByRef seuil1 As Long, _
                                         ByRef seuil2 As Long, _
                                         ByRef maxVal As Long, _
-                                        ByRef ferme As Boolean) As Boolean
+                                        ByRef ferme As Boolean, _
+                                        ByRef mode As String) As Boolean
 
     Dim tbl As ListObject
     On Error Resume Next
@@ -574,6 +577,15 @@ Private Function LireParametresMachine(ByVal nomMachine As String, _
             seuil2 = Val(tbl.DataBodyRange(i, PARAM_SEUIL2).Value)
             maxVal = Val(tbl.DataBodyRange(i, PARAM_MAX).Value)
             ferme = CBool(tbl.DataBodyRange(i, PARAM_FERMETURE).Value)
+            ' Colonne Mode : lue avec repli sur "Seuil" si la colonne
+            ' n'existe pas encore dans le tableau (compatibilité classeurs
+            ' pas encore mis à jour avec la nouvelle colonne F).
+            mode = MODE_PARAM_SEUIL
+            On Error Resume Next
+            Dim modeLu As String
+            modeLu = Trim(tbl.DataBodyRange(i, PARAM_MODE).Value)
+            On Error GoTo 0
+            If modeLu = MODE_PARAM_NOMBRE Then mode = MODE_PARAM_NOMBRE
             LireParametresMachine = True
             Exit Function
         End If
@@ -598,6 +610,24 @@ Private Function CalculerNbPersonnes(ByVal qte As Long, _
         CalculerNbPersonnes = 2
     Else
         CalculerNbPersonnes = 3
+    End If
+End Function
+
+'==============================================================================
+' FUNCTION : ObtenirNbPersonnesMachine
+' Nombre de personnes requises pour une machine, selon son mode :
+'   Mode Seuil  -> calcul habituel à partir de la quantité en épreuve
+'   Mode Nombre -> valeur fixe saisie (réutilise le champ Seuil1/"Seuil 2
+'                  pers.", indépendamment de la quantité en épreuve)
+'==============================================================================
+Private Function ObtenirNbPersonnesMachine(ByVal mode As String, _
+                                            ByVal qte As Long, _
+                                            ByVal seuil1 As Long, _
+                                            ByVal seuil2 As Long) As Long
+    If mode = MODE_PARAM_NOMBRE Then
+        ObtenirNbPersonnesMachine = seuil1
+    Else
+        ObtenirNbPersonnesMachine = CalculerNbPersonnes(qte, seuil1, seuil2)
     End If
 End Function
 
