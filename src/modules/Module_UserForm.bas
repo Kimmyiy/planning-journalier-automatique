@@ -40,10 +40,11 @@ Private Const C_STATS_EXP As Long = 23
 ' CONSTANTES - Colonnes du tableau Tbl_Parametres
 '------------------------------------------------------------------------------
 Private Const P_MACHINE    As Long = 1  ' A - Nom machine
-Private Const P_SEUIL1     As Long = 2  ' B - Seuil 2 personnes
+Private Const P_SEUIL1     As Long = 2  ' B - Seuil 2 personnes (ou Nombre fixe en mode Nombre)
 Private Const P_SEUIL2     As Long = 3  ' C - Seuil 3 personnes
 Private Const P_MAX        As Long = 4  ' D - Quantite max
 Private Const P_FERMETURE  As Long = 5  ' E - Fermeture (VRAI/FAUX)
+Private Const P_MODE       As Long = 6  ' F - Mode (Seuil / Nombre)
 
 ' Couleurs groupes auxiliaires (identiques au calendrier)
 Private Const COULEUR_G1 As Long = 11393254  ' Bleu clair  RGB(173,216,230)
@@ -1317,6 +1318,12 @@ Sub UF_ChargerParametres(ByVal frm As Object)
         Exit Sub
     End If
 
+    ' Mode global Seuil/Nombre, lu sur la ligne Vaox5-A et applique aux 4
+    ' machines Vaox5 (bouton bascule unique). Repli sur "Seuil" si la
+    ' colonne Mode n existe pas encore dans le tableau.
+    Dim modeGlobal As String
+    modeGlobal = MODE_PARAM_SEUIL
+
     ' Parcourt chaque ligne du tableau
     Dim i As Long
     For i = 1 To tbl.ListRows.count
@@ -1341,6 +1348,13 @@ Sub UF_ChargerParametres(ByVal frm As Object)
                 frm.txtS2A.Value = seuil2
                 frm.txtMaxA.Value = max_val
                 frm.chkFermA.Value = ferme
+
+                On Error Resume Next
+                Dim modeLu As String
+                modeLu = Trim(tbl.DataBodyRange(i, P_MODE).Value)
+                On Error GoTo 0
+                If modeLu = MODE_PARAM_NOMBRE Then modeGlobal = MODE_PARAM_NOMBRE
+
             Case "Vaox5-B"
                 frm.txtS1B.Value = seuil1
                 frm.txtS2B.Value = seuil2
@@ -1361,12 +1375,66 @@ Sub UF_ChargerParametres(ByVal frm As Object)
         End Select
 
     Next i
-    
+
+    Call AppliquerModeParametres(frm, modeGlobal)
+
     ' Effectif minimum semaine
     On Error Resume Next
     frm.txtEffectifMin.Value = CStr(Sheets(NOM_FEUILLE_PARAMETRES).Range("Effectif_Minimum").Value)
     On Error GoTo 0
-    
+
+End Sub
+
+'==============================================================================
+' SUB : UF_BasculerModeParametres
+' Bouton bascule (btnModeParametres) : change le mode Seuil/Nombre pour les
+' 4 machines Vaox5 en meme temps.
+'==============================================================================
+Sub UF_BasculerModeParametres(ByVal frm As Object)
+
+    Dim modeActuel As String
+    modeActuel = frm.btnModeParametres.Tag
+    If modeActuel = "" Then modeActuel = MODE_PARAM_SEUIL
+
+    Dim nouveauMode As String
+    nouveauMode = IIf(modeActuel = MODE_PARAM_SEUIL, MODE_PARAM_NOMBRE, MODE_PARAM_SEUIL)
+
+    Call AppliquerModeParametres(frm, nouveauMode)
+
+End Sub
+
+'==============================================================================
+' SUB : AppliquerModeParametres
+' Met a jour l affichage de l onglet Parametres selon le mode Seuil/Nombre :
+'   Seuil  : les 3 champs (Seuil 2 pers., Seuil 3 pers., Max) sont actifs,
+'            calcul habituel a partir de la quantite en epreuve.
+'   Nombre : seul "Seuil 2 pers." reste actif - il contient alors
+'            directement le nombre fixe de personnes a affecter. Les deux
+'            autres champs sont grises (valeurs conservees mais ignorees
+'            tant que le mode Nombre est actif).
+' Le mode courant est stocke dans le Tag du bouton bascule.
+'==============================================================================
+Private Sub AppliquerModeParametres(ByVal frm As Object, ByVal mode As String)
+
+    Dim actifSeuil As Boolean
+    actifSeuil = (mode = MODE_PARAM_SEUIL)
+
+    frm.txtS2A.Enabled = actifSeuil
+    frm.txtMaxA.Enabled = actifSeuil
+    frm.txtS2B.Enabled = actifSeuil
+    frm.txtMaxB.Enabled = actifSeuil
+    frm.txtS2C.Enabled = actifSeuil
+    frm.txtMaxC.Enabled = actifSeuil
+    frm.TxtS2D.Enabled = actifSeuil
+    frm.txtMaxD.Enabled = actifSeuil
+
+    frm.btnModeParametres.Tag = mode
+    If actifSeuil Then
+        frm.btnModeParametres.Caption = "Mode : Seuil de quantité (cliquer pour passer en Nombre fixe)"
+    Else
+        frm.btnModeParametres.Caption = "Mode : Nombre fixe (cliquer pour passer en Seuil de quantité)"
+    End If
+
 End Sub
 
 '==============================================================================
@@ -1394,6 +1462,12 @@ Sub UF_EnregistrerParametres(ByVal frm As Object)
     Dim tbl As ListObject
     Set tbl = ws.ListObjects("Tbl_Parametres")
 
+    ' Mode courant (Seuil/Nombre), stocke dans le Tag du bouton bascule par
+    ' AppliquerModeParametres. Applique aux 4 machines Vaox5.
+    Dim modeActuel As String
+    modeActuel = frm.btnModeParametres.Tag
+    If modeActuel = "" Then modeActuel = MODE_PARAM_SEUIL
+
     ' Ecrit chaque ligne du tableau
     Dim i As Long
     For i = 1 To tbl.ListRows.count
@@ -1407,21 +1481,33 @@ Sub UF_EnregistrerParametres(ByVal frm As Object)
                 tbl.DataBodyRange(i, P_SEUIL2).Value = CLng(frm.txtS2A.Value)
                 tbl.DataBodyRange(i, P_MAX).Value = CLng(frm.txtMaxA.Value)
                 tbl.DataBodyRange(i, P_FERMETURE).Value = frm.chkFermA.Value
+                On Error Resume Next
+                tbl.DataBodyRange(i, P_MODE).Value = modeActuel
+                On Error GoTo 0
             Case "Vaox5-B"
                 tbl.DataBodyRange(i, P_SEUIL1).Value = CLng(frm.txtS1B.Value)
                 tbl.DataBodyRange(i, P_SEUIL2).Value = CLng(frm.txtS2B.Value)
                 tbl.DataBodyRange(i, P_MAX).Value = CLng(frm.txtMaxB.Value)
                 tbl.DataBodyRange(i, P_FERMETURE).Value = frm.chkFermB.Value
+                On Error Resume Next
+                tbl.DataBodyRange(i, P_MODE).Value = modeActuel
+                On Error GoTo 0
             Case "Vaox5-C"
                 tbl.DataBodyRange(i, P_SEUIL1).Value = CLng(frm.txtS1C.Value)
                 tbl.DataBodyRange(i, P_SEUIL2).Value = CLng(frm.txtS2C.Value)
                 tbl.DataBodyRange(i, P_MAX).Value = CLng(frm.txtMaxC.Value)
                 tbl.DataBodyRange(i, P_FERMETURE).Value = frm.chkFermC.Value
+                On Error Resume Next
+                tbl.DataBodyRange(i, P_MODE).Value = modeActuel
+                On Error GoTo 0
             Case "Vaox5-D"
                 tbl.DataBodyRange(i, P_SEUIL1).Value = CLng(frm.txtS1D.Value)
                 tbl.DataBodyRange(i, P_SEUIL2).Value = CLng(frm.TxtS2D.Value)
                 tbl.DataBodyRange(i, P_MAX).Value = CLng(frm.txtMaxD.Value)
                 tbl.DataBodyRange(i, P_FERMETURE).Value = frm.chkFermD.Value
+                On Error Resume Next
+                tbl.DataBodyRange(i, P_MODE).Value = modeActuel
+                On Error GoTo 0
             Case "Vaox1-A&B"
                 tbl.DataBodyRange(i, P_FERMETURE).Value = frm.chkFermV1.Value
         End Select

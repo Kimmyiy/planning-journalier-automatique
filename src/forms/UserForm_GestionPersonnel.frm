@@ -590,6 +590,10 @@ Private Sub btnEnregistrerParams_Click()
     Call Module_UserForm.UF_EnregistrerParametres(Me)
 End Sub
 
+Private Sub btnModeParametres_Click()
+    Call Module_UserForm.UF_BasculerModeParametres(Me)
+End Sub
+
 '==============================================================================
 ' FERMETURE
 '==============================================================================
